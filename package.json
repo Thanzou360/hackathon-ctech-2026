@@ -1,0 +1,22 @@
+{
+  "name": "hackathon-unicbon-2026",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Site et API du Hackathon UniC’bon 2026 à Libreville",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.2.0",
+    "dotenv": "^16.6.1",
+    "express": "^5.1.0",
+    "express-rate-limit": "^8.0.1",
+    "helmet": "^8.1.0",
+    "nodemailer": "^10.1.1"
+  }
+}

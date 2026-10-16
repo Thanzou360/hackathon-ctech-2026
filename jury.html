@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<title>Rejoindre le jury — Hackathon UniC’bon 2026</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Candidatez au jury du Hackathon UniC’bon 2026 et proposez votre disponibilité pour évaluer les projets.">
+<meta name="theme-color" content="#050F0B">
+<link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="jury">
+<a class="skip" href="#main">Aller au contenu</a>
+<noscript><div class="demo">JavaScript est nécessaire pour transmettre une candidature.</div></noscript>
+<header id="site-header"></header>
+<main id="main">
+<section class="ph"><div class="wrap"><span class="eyebrow">Jury</span><h1>Rejoignez le jury du hackathon</h1><p>Évaluez les projets des étudiants et partagez votre expérience. Dites-nous quand vous êtes disponible.</p></div></section>
+<section class="sec"><div class="wrap fgrid">
+  <aside class="aside"><h2>Le rôle du jury</h2><ul><li>Écouter les présentations des équipes.</li><li>Évaluer les projets et annoncer les résultats.</li><li>Conseiller les étudiants.</li></ul></aside>
+  <div>
+    <p class="demo" id="demo" hidden>Mode démonstration : les données restent dans ce navigateur et ne sont pas transmises à l’organisation.</p>
+    <div id="done" class="done" hidden></div>
+    <form data-kind="jury">
+      <div class="row2"><label>Nom complet<input name="name" required maxlength="100" autocomplete="name"></label><label>Organisation et fonction<input name="org" required maxlength="160" autocomplete="organization-title"></label></div>
+      <div class="row2"><label>E-mail<input name="mail" type="email" required maxlength="254" autocomplete="email"></label><label>Téléphone ou WhatsApp <small>Facultatif</small><input name="tel" type="tel" maxlength="24" pattern="(?:\+?241|00241)?[0-9\s\(\).\-]{8,20}" title="Saisis 8 ou 9 chiffres, avec ou sans indicatif +241." placeholder="Ex. +241 65 36 96 29 ou 065 36 96 29" autocomplete="tel" inputmode="tel"></label></div>
+      <label>Domaine d’expertise<input name="exp" maxlength="200" placeholder="Ex. IA, fintech, cybersécurité, réseaux"></label>
+      <fieldset><legend>Jours de disponibilité</legend><div class="days"><label><input type="checkbox" name="day" value="Jour 1 (vendredi)">Vendredi 13</label><label><input type="checkbox" name="day" value="Jour 2 (samedi)">Samedi 14</label><label><input type="checkbox" name="day" value="Jour 3 (dimanche)">Dimanche 15</label></div></fieldset>
+      <div id="feedback" role="alert" aria-live="assertive"></div>
+      <button class="btn" type="submit" data-label="Envoyer ma candidature">Envoyer ma candidature</button>
+    </form>
+  </div>
+</div></section>
+</main>
+<footer id="site-footer"></footer>
+<script src="js/config.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

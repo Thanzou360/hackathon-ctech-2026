@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<title>Inscription — Hackathon UniC’bon 2026</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Préinscription individuelle et inscription d’équipe au Hackathon UniC’bon 2026 à Libreville.">
+<meta name="theme-color" content="#050F0B">
+<link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="inscription">
+<a class="skip" href="#main">Aller au contenu</a>
+<noscript><div class="demo">JavaScript est nécessaire pour transmettre une préinscription ou finaliser une équipe.</div></noscript>
+<header id="site-header"></header>
+<main id="main">
+<section class="ph"><div class="wrap"><span class="eyebrow">Inscription</span><h1 id="form-title">Préinscris-toi au hackathon</h1><p id="form-intro">Laisse tes coordonnées : tu seras réparti(e) au hasard dans une équipe de cinq. Son premier membre en sera le chef.</p></div></section>
+<section class="sec"><div class="wrap fgrid">
+  <aside class="aside"><h2>Les prochaines étapes</h2><ul><li>Tu envoies ta préinscription individuelle.</li><li>Le serveur répartit les candidatures entre 20 équipes de cinq personnes maximum.</li><li>Le premier membre devient chef et reçoit le lien d’inscription quand son équipe est complète.</li></ul></aside>
+  <div>
+    <p class="demo" id="demo" hidden>Mode démonstration : les données restent dans ce navigateur et ne sont pas transmises à l’organisation.</p>
+    <div id="done" class="done" hidden></div>
+    <form id="participant-form" data-kind="participants">
+      <div class="row2"><label>Nom complet<input name="name" required maxlength="100" autocomplete="name"></label><label>Filière<input name="fil" required maxlength="100" placeholder="Ex. G.LOG et IA"></label></div>
+      <div class="row2"><label>E-mail<input name="mail" type="email" required maxlength="254" autocomplete="email"></label><label>Téléphone ou WhatsApp<input name="tel" type="tel" required maxlength="24" pattern="(?:\+?241|00241)?[0-9\s\(\).\-]{8,20}" title="Saisis 8 ou 9 chiffres, avec ou sans indicatif +241." placeholder="Ex. +241 65 36 96 29 ou 065 36 96 29" autocomplete="tel" inputmode="tel"></label></div>
+      <div id="feedback" role="alert" aria-live="assertive"></div>
+      <button class="btn" type="submit" data-label="Envoyer ma préinscription">Envoyer ma préinscription</button>
+    </form>
+    <form id="team-form" data-kind="teams" hidden>
+      <p id="assignment-note" class="demo"></p>
+      <input type="hidden" name="invitationToken">
+      <div class="row2"><label>Nom de l’équipe<input name="name" required readonly></label><label>Filière principale<input name="fil" required maxlength="100" placeholder="Ex. G.LOG et IA"></label></div>
+      <div class="row2"><label>Chef d’équipe<input name="chef" required readonly autocomplete="name"></label><label>Téléphone ou WhatsApp<input name="tel" type="tel" required maxlength="24" pattern="(?:\+?241|00241)?[0-9\s\(\).\-]{8,20}" title="Saisis 8 ou 9 chiffres, avec ou sans indicatif +241." placeholder="Ex. +241 65 36 96 29 ou 065 36 96 29" autocomplete="tel" inputmode="tel"></label></div>
+      <label>E-mail de l’équipe<input name="mail" type="email" required readonly autocomplete="email"></label>
+      <fieldset><legend>Autres membres de l’équipe</legend>
+        <input name="member" aria-label="Membre 2" readonly><input name="member" aria-label="Membre 3" readonly><input name="member" aria-label="Membre 4" readonly><input name="member" aria-label="Membre 5" readonly>
+      </fieldset>
+      <label>Idée de projet <small>Facultatif — par exemple santé, éducation, énergie, mobilité, agriculture ou forêt</small><textarea name="idee" rows="3" maxlength="2000"></textarea></label>
+      <div id="feedback-team" role="alert" aria-live="assertive"></div>
+      <button class="btn" type="submit" data-label="Inscrire mon équipe">Inscrire mon équipe</button>
+    </form>
+  </div>
+</div></section>
+</main>
+<footer id="site-footer"></footer>
+<script src="js/config.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
