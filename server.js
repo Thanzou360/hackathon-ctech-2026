@@ -259,52 +259,60 @@ function createApp({
   const lookupLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 60, standardHeaders: 'draft-8', legacyHeaders: false });
   const adminLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 120, standardHeaders: 'draft-8', legacyHeaders: false });
   const requireAdmin = (req, _res, next) => {
-    const supplied = req.get('x-admin-key') || '';
-    if (adminApiKey && supplied) {
-      const expectedBuffer = Buffer.from(adminApiKey);
-      const suppliedBuffer = Buffer.from(supplied);
-      if (expectedBuffer.length === suppliedBuffer.length && crypto.timingSafeEqual(expectedBuffer, suppliedBuffer)) {
+    const validPass = adminPassword || 'ctech1994';
+    const validUser = adminUser || 'admin';
+
+    // 1. Check x-admin-key or x-admin-password header
+    const supplied = req.get('x-admin-key') || req.get('x-admin-password') || '';
+    if (supplied) {
+      if (adminApiKey && supplied.length === adminApiKey.length && crypto.timingSafeEqual(Buffer.from(adminApiKey), Buffer.from(supplied))) {
+        return next();
+      }
+      if (supplied === validPass) {
         return next();
       }
     }
 
+    // 2. Check Authorization header (Basic or Bearer)
     const authHeader = req.get('authorization') || '';
     if (authHeader.startsWith('Basic ')) {
       try {
         const credentials = Buffer.from(authHeader.slice(6).trim(), 'base64').toString('utf8');
         const [u, ...pParts] = credentials.split(':');
         const p = pParts.join(':');
-        const expectedUser = adminUser || 'admin';
-        const expectedPass = adminPassword || 'ctech1994';
-        if (u === expectedUser && p === expectedPass) {
+        if ((u === validUser && p === validPass) || p === validPass || credentials === validPass) {
           return next();
         }
       } catch {}
     }
     if (authHeader.startsWith('Bearer ')) {
       const token = authHeader.slice(7).trim();
-      if (adminApiKey && token) {
-        const expectedBuffer = Buffer.from(adminApiKey);
-        const suppliedBuffer = Buffer.from(token);
-        if (expectedBuffer.length === suppliedBuffer.length && crypto.timingSafeEqual(expectedBuffer, suppliedBuffer)) {
+      if (token) {
+        if (adminApiKey && token.length === adminApiKey.length && crypto.timingSafeEqual(Buffer.from(adminApiKey), Buffer.from(token))) {
+          return next();
+        }
+        if (token === validPass) {
           return next();
         }
       }
     }
 
-    const queryKey = req.query?.key || req.query?.adminKey;
-    if (adminApiKey && queryKey) {
-      const expectedBuffer = Buffer.from(adminApiKey);
-      const suppliedBuffer = Buffer.from(String(queryKey));
-      if (expectedBuffer.length === suppliedBuffer.length && crypto.timingSafeEqual(expectedBuffer, suppliedBuffer)) {
+    // 3. Check query param key (?key=... or ?adminKey=... or ?pwd=...)
+    const queryKey = req.query?.key || req.query?.adminKey || req.query?.pwd;
+    if (queryKey) {
+      const qStr = String(queryKey);
+      if (adminApiKey && qStr.length === adminApiKey.length && crypto.timingSafeEqual(Buffer.from(adminApiKey), Buffer.from(qStr))) {
+        return next();
+      }
+      if (qStr === validPass) {
         return next();
       }
     }
 
-    if (!adminApiKey && !adminUser) {
+    if (!adminApiKey && !validPass) {
       return next(new HttpError(503, 'La fonction administrateur n’est pas configurée.'));
     }
-    return next(new HttpError(401, 'Clé administrateur invalide.'));
+    return next(new HttpError(401, 'Clé ou mot de passe administrateur invalide.'));
   };
 
   app.disable('x-powered-by');
