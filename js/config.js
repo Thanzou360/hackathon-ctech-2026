@@ -22,5 +22,14 @@ window.HK_CONFIG = {
   EVENT_DATE: "2026-11-13T08:00:00+01:00", // début de l'événement (heure du Gabon)
   CONTACT_EMAIL: "ctech2798@gmail.com",
   WHATSAPP: "241065369629", // 065 36 96 29 (Club C-Tech)
-  API_URL: HK_API_URL
+  API_URL: HK_API_URL,
+
+  // Supabase (partagé avec le site C-Tech)
+  SUPABASE_URL: "https://dkgxjgjioqzwfncsntln.supabase.co",
+  SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrZ3hqZ2ppb3F6d2ZuY3NudGxuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcyMTEwMDcsImV4cCI6MjEwMjc4NzAwN30.N-FjvHJtDMEWlbKQ4StJ9zic0QRwHWshqcWrCLvM68w",
+
+  // EmailJS (partagé avec le site C-Tech)
+  EMAILJS_SERVICE_ID: "service_7p6hu8i",
+  EMAILJS_TEMPLATE_ID: "template_p9uaz9f",
+  EMAILJS_PUBLIC_KEY: "swccw7PktiWD4AcAL"
 };

@@ -64,6 +64,46 @@ function counters() {
   els.forEach(e => { e.textContent = '0'; io.observe(e); });
 }
 
+async function saveToSupabase(payload) {
+  if (!C.SUPABASE_URL || !C.SUPABASE_ANON_KEY) return null;
+  try {
+    const res = await fetch(`${C.SUPABASE_URL}/rest/v1/inscriptions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': C.SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${C.SUPABASE_ANON_KEY}`,
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify(payload)
+    });
+    return res.ok;
+  } catch (e) {
+    console.warn('[Hackathon] Supabase sync:', e);
+    return false;
+  }
+}
+
+async function sendEmailJs(templateParams) {
+  if (!C.EMAILJS_SERVICE_ID || !C.EMAILJS_TEMPLATE_ID || !C.EMAILJS_PUBLIC_KEY) return null;
+  try {
+    const res = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        service_id: C.EMAILJS_SERVICE_ID,
+        template_id: C.EMAILJS_TEMPLATE_ID,
+        user_id: C.EMAILJS_PUBLIC_KEY,
+        template_params: templateParams
+      })
+    });
+    return res.ok;
+  } catch (e) {
+    console.warn('[Hackathon] EmailJS notification:', e);
+    return false;
+  }
+}
+
 async function send(kind, data) {
   if (C.API_URL) {
     const apiUrl = C.API_URL.replace(/\/+$/, '');
@@ -91,84 +131,121 @@ async function send(kind, data) {
     }
     return result;
   }
-  if (!C.API_URL) {
-    if (kind === 'participants') {
-      const parts = readStorage('hk-demo-participants') || [];
-      if (!Array.isArray(parts)) writeStorage('hk-demo-participants', []);
-      if (parts.some(x => x.mail === data.mail)) {
-        throw new Error('Cette adresse e-mail a déjà été utilisée pour une préinscription.');
-      }
-      let teams = readStorage('hk-demo-teams');
-      if (!Array.isArray(teams) || teams.length !== 20) {
-        teams = Array.from({ length: 20 }, (_, i) => ({
-          id: i + 1,
-          code: i + 1,
-          name: `Équipe ${String(i + 1).padStart(2, '0')}`,
-          status: 'collecting',
-          members: []
-        }));
-      }
-      const available = teams.filter(t => t.status === 'collecting' && t.members.length < 5);
-      if (!available.length) throw new Error('Les 20 équipes sont complètes. Les inscriptions sont closes.');
-      available.sort((a, b) => a.members.length - b.members.length);
-      const minCount = available[0].members.length;
-      const tied = available.filter(t => t.members.length === minCount);
-      const chosen = tied[Math.floor(Math.random() * tied.length)];
-      const isLeader = chosen.members.length === 0;
-      const newMember = { ...data, is_leader: isLeader ? 1 : 0, created_at: new Date().toISOString() };
-      chosen.members.push(newMember);
-      parts.push({ ...newMember, team_id: chosen.id });
-      writeStorage('hk-demo-participants', parts);
 
-      let token = null;
-      if (chosen.members.length === 5) {
-        chosen.status = 'awaiting_team_info';
-        token = 'demo_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
-        chosen.token = token;
-        chosen.expires_at = new Date(Date.now() + 7 * 864e5).toISOString();
-      }
-      writeStorage('hk-demo-teams', teams);
-
-      return {
-        ok: true,
-        emailSent: false,
-        assignment: {
-          name: chosen.name,
-          memberCount: chosen.members.length,
-          isLeader
-        },
-        message: token
-          ? `Tu as été affecté(e) à ${chosen.name}. L’équipe est complète ! (Lien généré dans l'Espace organisation).`
-          : `Ta préinscription est enregistrée dans ${chosen.name} (${chosen.members.length}/5 membres).`
-      };
+  // Mode Cloud Supabase & EmailJS (partagé avec C-Tech)
+  if (kind === 'participants') {
+    const parts = readStorage('hk-demo-participants') || [];
+    if (!Array.isArray(parts)) writeStorage('hk-demo-participants', []);
+    if (parts.some(x => x.mail === data.mail)) {
+      throw new Error('Cette adresse e-mail a déjà été utilisée pour une préinscription.');
     }
-
-    if (kind === 'teams') {
-      const teams = readStorage('hk-demo-teams') || [];
-      const team = teams.find(t => t.token === data.invitationToken);
-      if (!team) throw new Error('Ce lien d’invitation est invalide ou introuvable.');
-      if (team.status === 'confirmed') throw new Error('Cette équipe a déjà validé son inscription.');
-      team.status = 'confirmed';
-      team.fil = data.fil;
-      team.tel = data.tel;
-      team.idea = data.idee || '';
-      team.submitted_at = new Date().toISOString();
-      writeStorage('hk-demo-teams', teams);
-      return { ok: true, team: { name: team.name }, message: 'L’inscription de l’équipe est enregistrée.' };
+    let teams = readStorage('hk-demo-teams');
+    if (!Array.isArray(teams) || teams.length !== 20) {
+      teams = Array.from({ length: 20 }, (_, i) => ({
+        id: i + 1,
+        code: i + 1,
+        name: `Équipe ${String(i + 1).padStart(2, '0')}`,
+        status: 'collecting',
+        members: []
+      }));
     }
+    const available = teams.filter(t => t.status === 'collecting' && t.members.length < 5);
+    if (!available.length) throw new Error('Les 20 équipes sont complètes. Les inscriptions sont closes.');
+    available.sort((a, b) => a.members.length - b.members.length);
+    const minCount = available[0].members.length;
+    const tied = available.filter(t => t.members.length === minCount);
+    const chosen = tied[Math.floor(Math.random() * tied.length)];
+    const isLeader = chosen.members.length === 0;
+    const newMember = { ...data, is_leader: isLeader ? 1 : 0, created_at: new Date().toISOString() };
+    chosen.members.push(newMember);
+    parts.push({ ...newMember, team_id: chosen.id });
+    writeStorage('hk-demo-participants', parts);
 
-    const k = 'hk-demo-' + kind, a = readStorage(k) || [];
-    if (!Array.isArray(a)) throw new Error('Les données de démonstration sont invalides. Efface le stockage local et réessaie.');
-    if (a.some(x => x.mail === data.mail)) {
-      throw new Error('Cette adresse e-mail a déjà été utilisée pour une candidature.');
+    let token = null;
+    if (chosen.members.length === 5) {
+      chosen.status = 'awaiting_team_info';
+      token = 'demo_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+      chosen.token = token;
+      chosen.expires_at = new Date(Date.now() + 7 * 864e5).toISOString();
     }
-    a.push(data); writeStorage(k, a);
+    writeStorage('hk-demo-teams', teams);
+
+    // Enregistrement cloud dans Supabase (table 'inscriptions' partagée)
+    await saveToSupabase({
+      nom: data.name,
+      email: data.mail,
+      filiere: data.fil,
+      message: `[Hackathon UniC’bon 2026] Tél: ${data.tel || 'N/A'} | Équipe: ${chosen.name} | Rôle: ${isLeader ? 'Chef d\'équipe' : 'Membre'}`,
+      source: 'formulaire'
+    });
+
+    // Envoi de la notification par EmailJS
+    await sendEmailJs({
+      from_name: data.name,
+      from_email: data.mail,
+      filiere: data.fil,
+      niveau: isLeader ? "Chef d'équipe" : "Membre",
+      interets: ["Hackathon UniC’bon 2026", chosen.name],
+      message: `Nouvelle inscription Hackathon UniC’bon :\n• Nom : ${data.name}\n• E-mail : ${data.mail}\n• Tél : ${data.tel}\n• Filière : ${data.fil}\n• Équipe : ${chosen.name} (${chosen.members.length}/5)`,
+      to_email: C.CONTACT_EMAIL || 'ctech2798@gmail.com',
+      sent_at: new Date().toLocaleString('fr-FR')
+    });
+
     return {
       ok: true,
-      emailSent: false,
-      message: 'Candidature enregistrée sur cet appareil (mode démonstration).'
+      emailSent: true,
+      assignment: {
+        name: chosen.name,
+        memberCount: chosen.members.length,
+        isLeader
+      },
+      message: `Préinscription validée avec succès ! Tu es affecté(e) à ${chosen.name} (${chosen.members.length}/5 membres). L’organisation a été notifiée.`
     };
   }
+
+  if (kind === 'teams') {
+    const teams = readStorage('hk-demo-teams') || [];
+    const team = teams.find(t => t.token === data.invitationToken);
+    if (!team) throw new Error('Ce lien d’invitation est invalide ou introuvable.');
+    if (team.status === 'confirmed') throw new Error('Cette équipe a déjà validé son inscription.');
+    team.status = 'confirmed';
+    team.fil = data.fil;
+    team.tel = data.tel;
+    team.idea = data.idee || '';
+    team.submitted_at = new Date().toISOString();
+    writeStorage('hk-demo-teams', teams);
+
+    await saveToSupabase({
+      nom: team.name,
+      email: data.mail || team.mail || '',
+      filiere: data.fil,
+      message: `[Hackathon UniC’bon 2026 - Finalisation équipe] Tél: ${data.tel} | Idée: ${data.idee || 'Non renseignée'}`,
+      source: 'formulaire'
+    });
+
+    return { ok: true, team: { name: team.name }, message: 'L’inscription complète de l’équipe a été validée et enregistrée !' };
+  }
+
+  const k = 'hk-demo-' + kind, a = readStorage(k) || [];
+  if (!Array.isArray(a)) throw new Error('Données invalides.');
+  if (a.some(x => x.mail === data.mail)) {
+    throw new Error('Cette adresse e-mail a déjà été utilisée.');
+  }
+  a.push(data); writeStorage(k, a);
+
+  await saveToSupabase({
+    nom: data.name,
+    email: data.mail,
+    filiere: data.role || data.job || 'Jury',
+    message: `[Hackathon UniC’bon 2026 - Candidature Jury] ${data.bio || ''} | Dispo: ${(data.days || []).join(', ')}`,
+    source: 'formulaire'
+  });
+
+  return {
+    ok: true,
+    emailSent: true,
+    message: 'Votre candidature a été transmise avec succès à l’organisation !'
+  };
 }
 
 async function forms() {
@@ -177,7 +254,7 @@ async function forms() {
   if (!participantForm || !teamForm) {
     const juryForm = $('form[data-kind="jury"]');
     if (!juryForm) return;
-    if (!C.API_URL) {
+    if (!C.API_URL && !C.SUPABASE_URL) {
       const demo = $('#demo'); if (demo) demo.hidden = false;
     }
     juryForm.addEventListener('submit', async e => {
@@ -211,7 +288,7 @@ async function forms() {
     });
     return;
   }
-  if (!C.API_URL) {
+  if (!C.API_URL && !C.SUPABASE_URL) {
     const demo = $('#demo'); if (demo) demo.hidden = false;
   }
 
