@@ -91,18 +91,84 @@ async function send(kind, data) {
     }
     return result;
   }
-  const k = 'hk-demo-' + kind, a = readStorage(k) || [];
-  if (!Array.isArray(a)) throw new Error('Les données de démonstration sont invalides. Efface le stockage local et réessaie.');
-  if (a.some(x => x.mail === data.mail)) {
-    throw new Error(kind === 'teams' ? 'Cette adresse e-mail est déjà utilisée par une équipe.' : 'Cette adresse e-mail a déjà été utilisée pour une candidature.');
+  if (!C.API_URL) {
+    if (kind === 'participants') {
+      const parts = readStorage('hk-demo-participants') || [];
+      if (!Array.isArray(parts)) writeStorage('hk-demo-participants', []);
+      if (parts.some(x => x.mail === data.mail)) {
+        throw new Error('Cette adresse e-mail a déjà été utilisée pour une préinscription.');
+      }
+      let teams = readStorage('hk-demo-teams');
+      if (!Array.isArray(teams) || teams.length !== 20) {
+        teams = Array.from({ length: 20 }, (_, i) => ({
+          id: i + 1,
+          code: i + 1,
+          name: `Équipe ${String(i + 1).padStart(2, '0')}`,
+          status: 'collecting',
+          members: []
+        }));
+      }
+      const available = teams.filter(t => t.status === 'collecting' && t.members.length < 5);
+      if (!available.length) throw new Error('Les 20 équipes sont complètes. Les inscriptions sont closes.');
+      available.sort((a, b) => a.members.length - b.members.length);
+      const minCount = available[0].members.length;
+      const tied = available.filter(t => t.members.length === minCount);
+      const chosen = tied[Math.floor(Math.random() * tied.length)];
+      const isLeader = chosen.members.length === 0;
+      const newMember = { ...data, is_leader: isLeader ? 1 : 0, created_at: new Date().toISOString() };
+      chosen.members.push(newMember);
+      parts.push({ ...newMember, team_id: chosen.id });
+      writeStorage('hk-demo-participants', parts);
+
+      let token = null;
+      if (chosen.members.length === 5) {
+        chosen.status = 'awaiting_team_info';
+        token = 'demo_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+        chosen.token = token;
+        chosen.expires_at = new Date(Date.now() + 7 * 864e5).toISOString();
+      }
+      writeStorage('hk-demo-teams', teams);
+
+      return {
+        ok: true,
+        emailSent: false,
+        assignment: {
+          name: chosen.name,
+          memberCount: chosen.members.length,
+          isLeader
+        },
+        message: token
+          ? `Tu as été affecté(e) à ${chosen.name}. L’équipe est complète ! (Lien généré dans l'Espace organisation).`
+          : `Ta préinscription est enregistrée dans ${chosen.name} (${chosen.members.length}/5 membres).`
+      };
+    }
+
+    if (kind === 'teams') {
+      const teams = readStorage('hk-demo-teams') || [];
+      const team = teams.find(t => t.token === data.invitationToken);
+      if (!team) throw new Error('Ce lien d’invitation est invalide ou introuvable.');
+      if (team.status === 'confirmed') throw new Error('Cette équipe a déjà validé son inscription.');
+      team.status = 'confirmed';
+      team.fil = data.fil;
+      team.tel = data.tel;
+      team.idea = data.idee || '';
+      team.submitted_at = new Date().toISOString();
+      writeStorage('hk-demo-teams', teams);
+      return { ok: true, team: { name: team.name }, message: 'L’inscription de l’équipe est enregistrée.' };
+    }
+
+    const k = 'hk-demo-' + kind, a = readStorage(k) || [];
+    if (!Array.isArray(a)) throw new Error('Les données de démonstration sont invalides. Efface le stockage local et réessaie.');
+    if (a.some(x => x.mail === data.mail)) {
+      throw new Error('Cette adresse e-mail a déjà été utilisée pour une candidature.');
+    }
+    a.push(data); writeStorage(k, a);
+    return {
+      ok: true,
+      emailSent: false,
+      message: 'Candidature enregistrée sur cet appareil (mode démonstration).'
+    };
   }
-  a.push(data); writeStorage(k, a);
-  return {
-    emailSent: false,
-    message: kind === 'participants'
-      ? 'Préinscription conservée sur cet appareil. Le tirage d’équipe sera fait quand le serveur sera connecté.'
-      : ''
-  };
 }
 
 async function forms() {
@@ -161,19 +227,37 @@ async function forms() {
     const assignmentNote = $('#assignment-note');
     const teamButton = $('button[type=submit]', teamForm);
     try {
-      if (!C.API_URL) throw new Error('Le lien d’équipe doit être ouvert depuis le site connecté au serveur.');
-      const response = await fetch(`${C.API_URL.replace(/\/$/, '')}/api/team-invitations/${encodeURIComponent(invitationToken)}`);
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.error || 'Ce lien d’invitation est invalide ou expiré.');
-      $('[name="name"]', teamForm).value = result.data.assignedTeam;
-      $('[name="chef"]', teamForm).value = result.data.name;
-      $('[name="mail"]', teamForm).value = result.data.mail;
-      $('[name="tel"]', teamForm).value = result.data.tel || '';
-      $('[name="fil"]', teamForm).value = result.data.fil || '';
+      let teamInfo;
+      if (C.API_URL) {
+        const response = await fetch(`${C.API_URL.replace(/\/$/, '')}/api/team-invitations/${encodeURIComponent(invitationToken)}`);
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.error || 'Ce lien d’invitation est invalide ou expiré.');
+        teamInfo = result.data;
+      } else {
+        const teams = readStorage('hk-demo-teams') || [];
+        const team = teams.find(t => t.token === invitationToken);
+        if (!team) throw new Error('Ce lien d’invitation est invalide ou expiré (mode démonstration).');
+        if (team.status === 'confirmed') throw new Error('Cette équipe a déjà finalisé son inscription.');
+        const leader = (team.members && team.members.find(m => m.is_leader)) || team.members?.[0];
+        const otherMembers = (team.members || []).filter(m => m !== leader);
+        teamInfo = {
+          assignedTeam: team.name,
+          name: leader?.name || '',
+          mail: leader?.mail || '',
+          tel: leader?.tel || '',
+          fil: leader?.fil || '',
+          members: otherMembers.map(m => ({ name: m.name }))
+        };
+      }
+      $('[name="name"]', teamForm).value = teamInfo.assignedTeam;
+      $('[name="chef"]', teamForm).value = teamInfo.name;
+      $('[name="mail"]', teamForm).value = teamInfo.mail;
+      $('[name="tel"]', teamForm).value = teamInfo.tel || '';
+      $('[name="fil"]', teamForm).value = teamInfo.fil || '';
       teamForm.querySelectorAll('[name="member"]').forEach((input, index) => {
-        input.value = result.data.members[index]?.name || '';
+        input.value = teamInfo.members[index]?.name || '';
       });
-      assignmentNote.textContent = `Tu es le chef désigné de « ${result.data.assignedTeam} ». Remplis les informations ci-dessous pour confirmer votre participation.`;
+      assignmentNote.textContent = `Tu es le chef désigné de « ${teamInfo.assignedTeam} ». Remplis les informations ci-dessous pour confirmer votre participation.`;
       assignmentNote.classList.remove('msg');
     } catch (error) {
       assignmentNote.textContent = error.message;

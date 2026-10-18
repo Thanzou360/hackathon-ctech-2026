@@ -156,6 +156,8 @@ tr:hover td { background: rgba(255,255,255,.02); }
   const teamsContainer = document.getElementById('teams-container');
   const juryTableBody = document.getElementById('jury-table-body');
 
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
   function showToast(msg, isErr = false) {
     const el = document.createElement('div');
     el.className = 'toast' + (isErr ? ' err' : '');
@@ -175,35 +177,74 @@ tr:hover td { background: rgba(255,255,255,.02); }
   }
 
   async function checkAuth(key) {
-    // Try x-admin-key first
-    let res = await fetch(`${apiUrl}/api/admin/auth`, {
-      headers: { 'x-admin-key': key }
-    });
-    if (res.ok) {
-      currentKey = key;
-      authType = 'header';
-      sessionStorage.setItem('hk_admin_key', key);
-      sessionStorage.setItem('hk_auth_type', 'header');
-      return true;
+    if (!apiUrl) {
+      const pass = key.includes(':') ? key.split(':')[1] : key;
+      if (pass === 'ctech1994' || key === 'ctech1994') {
+        currentKey = key;
+        authType = 'demo';
+        sessionStorage.setItem('hk_admin_key', key);
+        sessionStorage.setItem('hk_auth_type', 'demo');
+        return true;
+      }
+      return false;
     }
+    try {
+      // Try x-admin-key first
+      let res = await fetch(`${apiUrl}/api/admin/auth`, {
+        headers: { 'x-admin-key': key }
+      });
+      if (res.ok) {
+        currentKey = key;
+        authType = 'header';
+        sessionStorage.setItem('hk_admin_key', key);
+        sessionStorage.setItem('hk_auth_type', 'header');
+        return true;
+      }
 
-    // Try Basic auth (admin:key or user:pass)
-    const basicToken = btoa(key.includes(':') ? key : `admin:${key}`);
-    res = await fetch(`${apiUrl}/api/admin/auth`, {
-      headers: { 'Authorization': `Basic ${basicToken}` }
-    });
-    if (res.ok) {
-      currentKey = basicToken;
-      authType = 'basic';
-      sessionStorage.setItem('hk_admin_key', basicToken);
-      sessionStorage.setItem('hk_auth_type', 'basic');
-      return true;
+      // Try Basic auth (admin:key or user:pass)
+      const creds = key.includes(':') ? key : `admin:${key}`;
+      const basicToken = btoa(unescape(encodeURIComponent(creds)));
+      res = await fetch(`${apiUrl}/api/admin/auth`, {
+        headers: { 'Authorization': `Basic ${basicToken}` }
+      });
+      if (res.ok) {
+        currentKey = basicToken;
+        authType = 'basic';
+        sessionStorage.setItem('hk_admin_key', basicToken);
+        sessionStorage.setItem('hk_auth_type', 'basic');
+        return true;
+      }
+    } catch (e) {
+      console.error('Erreur d’authentification :', e);
     }
     return false;
   }
 
   async function loadData() {
     try {
+      if (!apiUrl || authType === 'demo') {
+        let teams = JSON.parse(localStorage.getItem('hk-demo-teams') || 'null');
+        if (!Array.isArray(teams)) {
+          teams = Array.from({ length: 20 }, (_, i) => ({
+            id: i + 1,
+            code: i + 1,
+            name: `Équipe ${String(i + 1).padStart(2, '0')}`,
+            status: 'collecting',
+            members: []
+          }));
+        }
+        teams.forEach(t => {
+          t.member_count = (t.members || []).length;
+          const leader = (t.members || []).find(m => m.is_leader);
+          t.leader_name = leader?.name || '';
+          t.leader_mail = leader?.mail || '';
+          t.leader_tel = leader?.tel || '';
+        });
+        const applications = JSON.parse(localStorage.getItem('hk-demo-jury') || '[]');
+        renderDashboard(teams, applications);
+        return;
+      }
+
       const [tRes, jRes] = await Promise.all([
         fetch(`${apiUrl}/api/admin/teams`, { headers: getHeaders() }),
         fetch(`${apiUrl}/api/admin/jury`, { headers: getHeaders() })
@@ -257,7 +298,7 @@ tr:hover td { background: rgba(255,255,255,.02); }
           <div class="t-card">
             <div>
               <div class="t-head">
-                <span class="t-title">${t.name}</span>
+                <span class="t-title">${esc(t.name)}</span>
                 <span class="badge ${badgeClass}">${badgeText}</span>
               </div>
               <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--mut);">
@@ -268,8 +309,8 @@ tr:hover td { background: rgba(255,255,255,.02); }
 
               ${leader?.name ? `
                 <div style="font-size:13px;margin-bottom:8px;">
-                  <strong style="color:var(--txt);">Chef :</strong> ${leader.name}
-                  ${leader.mail ? `<br><small style="color:var(--mut);">${leader.mail} ${leader.tel ? '· ' + leader.tel : ''}</small>` : ''}
+                  <strong style="color:var(--txt);">Chef :</strong> ${esc(leader.name)}
+                  ${leader.mail ? `<br><small style="color:var(--mut);">${esc(leader.mail)} ${leader.tel ? '· ' + esc(leader.tel) : ''}</small>` : ''}
                 </div>
               ` : '<div style="font-size:13px;color:var(--mut);margin-bottom:8px;">Pas encore de membre</div>'}
 
@@ -277,19 +318,19 @@ tr:hover td { background: rgba(255,255,255,.02); }
                 <ul class="member-list">
                   ${t.members.map(m => `
                     <li class="member-item">
-                      <span>${m.name} ${m.is_leader ? '<span class="leader-tag">Chef</span>' : ''}</span>
-                      <small style="color:var(--mut);font-family:var(--fm);">${m.fil || ''}</small>
+                      <span>${esc(m.name)} ${m.is_leader ? '<span class="leader-tag">Chef</span>' : ''}</span>
+                      <small style="color:var(--mut);font-family:var(--fm);">${esc(m.fil || '')}</small>
                     </li>
                   `).join('')}
                 </ul>
               ` : ''}
 
-              ${t.idea ? `<div class="t-idea">💡 <strong>Projet :</strong> ${t.idea}</div>` : ''}
+              ${t.idea ? `<div class="t-idea">💡 <strong>Projet :</strong> ${esc(t.idea)}</div>` : ''}
             </div>
 
             <div class="t-actions">
               ${t.status === 'awaiting_team_info' ? `
-                <button class="btn gold btn-sm" onclick="resendInvitation(${t.id}, '${t.name}')">
+                <button class="btn gold btn-sm" data-action="resend" data-team-id="${t.id}" data-team-name="${esc(t.name)}">
                   ✉ Renvoyer le lien au chef
                 </button>
               ` : ''}
@@ -305,20 +346,45 @@ tr:hover td { background: rgba(255,255,255,.02); }
     } else {
       juryTableBody.innerHTML = applications.map(a => `
         <tr>
-          <td><strong>${a.name}</strong></td>
-          <td>${a.organization || '—'}</td>
-          <td><a href="mailto:${a.mail}" style="color:var(--green);">${a.mail}</a></td>
-          <td>${a.tel || '—'}</td>
-          <td>${a.expertise || '—'}</td>
-          <td>${Array.isArray(a.days) ? a.days.map(d => `<span class="badge collecting" style="font-size:10px;margin:2px;">${d}</span>`).join(' ') : '—'}</td>
+          <td><strong>${esc(a.name)}</strong></td>
+          <td>${esc(a.organization || '—')}</td>
+          <td><a href="mailto:${esc(a.mail)}" style="color:var(--green);">${esc(a.mail)}</a></td>
+          <td>${esc(a.tel || '—')}</td>
+          <td>${esc(a.expertise || '—')}</td>
+          <td>${Array.isArray(a.days) ? a.days.map(d => `<span class="badge collecting" style="font-size:10px;margin:2px;">${esc(d)}</span>`).join(' ') : '—'}</td>
           <td><small style="color:var(--mut);font-family:var(--fm);">${a.created_at ? new Date(a.created_at).toLocaleDateString('fr-FR') : '—'}</small></td>
         </tr>
       `).join('');
     }
   }
 
-  window.resendInvitation = async function(teamId, teamName) {
+  teamsContainer.addEventListener('click', async e => {
+    const btn = e.target.closest('[data-action="resend"]');
+    if (!btn) return;
+    const teamId = btn.dataset.teamId;
+    const teamName = btn.dataset.teamName;
+    await resendInvitation(teamId, teamName);
+  });
+
+  async function resendInvitation(teamId, teamName) {
     try {
+      if (!apiUrl || authType === 'demo') {
+        const teams = JSON.parse(localStorage.getItem('hk-demo-teams') || '[]');
+        const team = teams.find(t => String(t.id) === String(teamId));
+        if (!team) throw new Error('Équipe introuvable.');
+        const token = 'demo_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+        team.token = token;
+        team.status = 'awaiting_team_info';
+        team.expires_at = new Date(Date.now() + 7 * 864e5).toISOString();
+        localStorage.setItem('hk-demo-teams', JSON.stringify(teams));
+        const url = `${location.origin}${location.pathname.replace(/admin\.html.*$/, '')}inscription.html?invite=${encodeURIComponent(token)}`;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(url).catch(() => {});
+        }
+        showToast(`Lien généré pour ${teamName} ! (Copié dans le presse-papiers)`);
+        loadData();
+        return;
+      }
       const res = await fetch(`${apiUrl}/api/admin/team-invitations/resend`, {
         method: 'POST',
         headers: getHeaders(),
@@ -326,12 +392,19 @@ tr:hover td { background: rgba(255,255,255,.02); }
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Échec de l’envoi.');
-      showToast(`Lien envoyé avec succès pour ${teamName} !`);
+      if (data.invitationUrl) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(data.invitationUrl).catch(() => {});
+        }
+        showToast(data.message || `Lien généré pour ${teamName} ! (Copié dans le presse-papiers)`);
+      } else {
+        showToast(data.message || `Lien envoyé avec succès pour ${teamName} !`);
+      }
       loadData();
     } catch (e) {
       showToast('Erreur : ' + e.message, true);
     }
-  };
+  }
 
   function logout() {
     sessionStorage.removeItem('hk_admin_key');

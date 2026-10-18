@@ -245,9 +245,10 @@ function createApp({
     throw new Error('PUBLIC_URL doit utiliser HTTP ou HTTPS.');
   }
   let allowedWebOrigin = '';
-  if (webOrigin) {
-    const parsedWebOrigin = new URL(webOrigin);
-    if (!['http:', 'https:'].includes(parsedWebOrigin.protocol) || parsedWebOrigin.origin !== webOrigin) {
+  const cleanWebOrigin = (webOrigin || '').trim().replace(/\/+$/, '');
+  if (cleanWebOrigin) {
+    const parsedWebOrigin = new URL(cleanWebOrigin);
+    if (!['http:', 'https:'].includes(parsedWebOrigin.protocol) || parsedWebOrigin.origin !== cleanWebOrigin) {
       throw new Error('WEB_ORIGIN doit être une origine HTTP(S) sans chemin.');
     }
     allowedWebOrigin = parsedWebOrigin.origin;
@@ -613,7 +614,6 @@ function createApp({
 
   app.post('/api/admin/team-invitations/resend', adminLimiter, requireAdmin, async (req, res, next) => {
     try {
-      if (!mailer) throw new HttpError(503, 'Le service de courriel SMTP n’est pas configuré.');
       const body = requireObject(req.body);
       const teamId = Number(body.teamId);
       if (!Number.isSafeInteger(teamId) || teamId < 1) throw new HttpError(400, 'Identifiant d’équipe invalide.');
@@ -630,12 +630,23 @@ function createApp({
       const expiresAt = new Date(Date.now() + INVITATION_TTL_MS).toISOString();
       const teamName = `Équipe ${String(team.code).padStart(2, '0')}`;
       const invitationUrl = `${siteUrl}/inscription.html?invite=${encodeURIComponent(token)}`;
-      await mailer.sendInvitation(team.mail, invitationUrl, teamName);
+      let emailSent = false;
+      if (mailer) {
+        await mailer.sendInvitation(team.mail, invitationUrl, teamName);
+        emailSent = true;
+      }
       db.prepare(`
         UPDATE invitations SET token_hash = ?, expires_at = ?, used_at = NULL, created_at = ?
         WHERE team_id = ?
       `).run(invitationHash(token), expiresAt, new Date().toISOString(), team.id);
-      res.json({ ok: true, emailSent: true, message: `Le lien de ${teamName} a été renvoyé au chef d’équipe.` });
+      res.json({
+        ok: true,
+        emailSent,
+        invitationUrl,
+        message: emailSent
+          ? `Le lien de ${teamName} a été renvoyé au chef d’équipe.`
+          : `Nouveau lien généré pour ${teamName} (SMTP non configuré : copiez le lien).`
+      });
     } catch (error) {
       if (error instanceof HttpError) return next(error);
       if (logErrors) console.error('Échec du renvoi d’une invitation :', error.message);

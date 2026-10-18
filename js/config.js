@@ -8,8 +8,10 @@ function resolveApiUrl() {
   if (typeof window !== 'undefined' && window.HK_API_URL) return window.HK_API_URL;
   if (typeof window === 'undefined') return '';
   if (window.location.protocol === 'file:') return '';
+  // Sur GitHub Pages (*.github.io), aucun backend Express n'est hébergé localement par défaut
+  if (window.location.hostname.endsWith('github.io')) return '';
   if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-    return window.location.port === '3000' ? window.location.origin : 'http://localhost:3000';
+    return window.location.port === '3000' ? window.location.origin : 'http://' + window.location.hostname + ':3000';
   }
   return window.location.origin;
 }
