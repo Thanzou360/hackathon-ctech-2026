@@ -64,23 +64,27 @@ function counters() {
   els.forEach(e => { e.textContent = '0'; io.observe(e); });
 }
 
-async function saveToSupabase(payload) {
-  if (!C.SUPABASE_URL || !C.SUPABASE_ANON_KEY) return null;
+function saveToLocalDb(entry) {
   try {
-    const res = await fetch(`${C.SUPABASE_URL}/rest/v1/inscriptions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': C.SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${C.SUPABASE_ANON_KEY}`,
-        'Prefer': 'return=minimal'
-      },
-      body: JSON.stringify(payload)
-    });
-    return res.ok;
+    const list = JSON.parse(localStorage.getItem('ctech_inscriptions') || '[]');
+    if (Array.isArray(list)) {
+      if (!list.some(x => (x.email || '').toLowerCase() === (entry.email || '').toLowerCase())) {
+        list.push({
+          id: 'ins_hk_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6),
+          nom: entry.nom || '',
+          email: entry.email || '',
+          filiere: entry.filiere || '',
+          tel: entry.tel || '',
+          message: entry.message || '',
+          source: 'hackathon',
+          created_at: new Date().toISOString()
+        });
+        localStorage.setItem('ctech_inscriptions', JSON.stringify(list));
+        window.dispatchEvent(new CustomEvent('ctech_inscription_added'));
+      }
+    }
   } catch (e) {
-    console.warn('[Hackathon] Supabase sync:', e);
-    return false;
+    console.warn('[Hackathon] Sauvegarde base locale:', e);
   }
 }
 
@@ -170,16 +174,16 @@ async function send(kind, data) {
     }
     writeStorage('hk-demo-teams', teams);
 
-    // Enregistrement cloud dans Supabase (table 'inscriptions' partagée)
-    await saveToSupabase({
+    // Enregistrement dans la base locale partagée avec C-Tech
+    saveToLocalDb({
       nom: data.name,
       email: data.mail,
       filiere: data.fil,
-      message: `[Hackathon UniC’bon 2026] Tél: ${data.tel || 'N/A'} | Équipe: ${chosen.name} | Rôle: ${isLeader ? 'Chef d\'équipe' : 'Membre'}`,
-      source: 'formulaire'
+      tel: data.tel || 'N/A',
+      message: `[Hackathon UniC’bon 2026] Tél: ${data.tel || 'N/A'} | Équipe: ${chosen.name} | Rôle: ${isLeader ? 'Chef d\'équipe' : 'Membre'}`
     });
 
-    // Envoi de la notification par EmailJS
+    // Envoi de la notification par EmailJS (optionnelle)
     await sendEmailJs({
       from_name: data.name,
       from_email: data.mail,
@@ -199,7 +203,7 @@ async function send(kind, data) {
         memberCount: chosen.members.length,
         isLeader
       },
-      message: `Préinscription validée avec succès ! Tu es affecté(e) à ${chosen.name} (${chosen.members.length}/5 membres). L’organisation a été notifiée.`
+      message: `Préinscription validée avec succès ! Tu es affecté(e) à ${chosen.name} (${chosen.members.length}/5 membres). Enregistré dans la base interne.`
     };
   }
 
@@ -215,12 +219,12 @@ async function send(kind, data) {
     team.submitted_at = new Date().toISOString();
     writeStorage('hk-demo-teams', teams);
 
-    await saveToSupabase({
+    saveToLocalDb({
       nom: team.name,
       email: data.mail || team.mail || '',
       filiere: data.fil,
-      message: `[Hackathon UniC’bon 2026 - Finalisation équipe] Tél: ${data.tel} | Idée: ${data.idee || 'Non renseignée'}`,
-      source: 'formulaire'
+      tel: data.tel || '',
+      message: `[Hackathon UniC’bon 2026 - Finalisation équipe] Tél: ${data.tel} | Idée: ${data.idee || 'Non renseignée'}`
     });
 
     return { ok: true, team: { name: team.name }, message: 'L’inscription complète de l’équipe a été validée et enregistrée !' };
@@ -233,12 +237,12 @@ async function send(kind, data) {
   }
   a.push(data); writeStorage(k, a);
 
-  await saveToSupabase({
+  saveToLocalDb({
     nom: data.name,
     email: data.mail,
-    filiere: data.role || data.job || 'Jury',
-    message: `[Hackathon UniC’bon 2026 - Candidature Jury] ${data.bio || ''} | Dispo: ${(data.days || []).join(', ')}`,
-    source: 'formulaire'
+    filiere: data.org || data.role || data.job || 'Jury',
+    tel: data.tel || '',
+    message: `[Hackathon UniC’bon 2026 - Candidature Jury] ${data.exp || data.bio || ''} | Dispo: ${(data.days || []).join(', ')}`
   });
 
   return {
@@ -254,9 +258,6 @@ async function forms() {
   if (!participantForm || !teamForm) {
     const juryForm = $('form[data-kind="jury"]');
     if (!juryForm) return;
-    if (!C.API_URL && !C.SUPABASE_URL) {
-      const demo = $('#demo'); if (demo) demo.hidden = false;
-    }
     juryForm.addEventListener('submit', async e => {
       e.preventDefault();
       if (!juryForm.reportValidity()) return;
@@ -288,9 +289,7 @@ async function forms() {
     });
     return;
   }
-  if (!C.API_URL && !C.SUPABASE_URL) {
-    const demo = $('#demo'); if (demo) demo.hidden = false;
-  }
+
 
   const invitationToken = new URLSearchParams(location.search).get('invite');
   const title = $('#form-title');
