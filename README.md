@@ -1,6 +1,6 @@
-# Hackathon UniC’bon 2026 — IST, Libreville
+# Hackathon C-Tech 2026 — Innover pour le Gabon
 
-Site web et API pour le Hackathon UniC’bon, du 13 au 15 novembre 2026 à Libreville. Le site met en avant l’innovation numérique au service des besoins gabonais et propose les parcours de préinscription, d’inscription d’équipe et de candidature au jury.
+Site web du Hackathon C-Tech 2026, organisé par le Club de Technologie C-Tech en collaboration avec l’IST, du 13 au 15 novembre 2026 au Cap Estérias. Le site met en avant l’innovation numérique au service des besoins gabonais et propose les parcours de préinscription, d’inscription d’équipe et de candidature au jury.
 
 ## Fonctionnalités
 
@@ -11,7 +11,33 @@ Site web et API pour le Hackathon UniC’bon, du 13 au 15 novembre 2026 à Libre
 - Les données sont conservées dans une base SQLite, et non dans le navigateur des participants.
 - Les entrées sont validées côté serveur, les doublons sont refusés et les API publiques sont limitées en débit.
 
-## Installation et démarrage
+## Mise en ligne sur GitHub Pages avec Supabase (recommandé)
+
+GitHub Pages ne peut héberger que des pages fixes : sans base de données, aucune inscription ne serait partagée entre les candidats. Le site utilise donc une base **Supabase** gratuite, à laquelle il accède uniquement par des fonctions sécurisées (`supabase/schema.sql`).
+
+1. Créer un compte sur [supabase.com](https://supabase.com), puis un projet (région la plus proche, par exemple Europe).
+2. Dans le projet : **SQL Editor → New query**, coller tout le contenu de `supabase/schema.sql`, puis **Run**.
+3. Toujours dans le SQL Editor, définir le mot de passe de l’espace organisation (12 caractères minimum) :
+   ```sql
+   select public.hk_set_admin_password('choisir-un-mot-de-passe-long');
+   ```
+4. Dans **Project Settings → API**, copier la **Project URL** et la clé **anon public**, puis les coller dans `js/config.js` :
+   ```js
+   const SUPABASE_URL = 'https://xxxxxxxx.supabase.co';
+   const SUPABASE_ANON_KEY = 'eyJ...';
+   ```
+   La clé *anon* est prévue pour être publique : les tables sont fermées et seules les fonctions du script sont autorisées. Ne jamais publier la clé *service_role*.
+5. Publier sur GitHub. Tant que ces deux valeurs sont vides, le formulaire public reste désactivé avec un message invitant à contacter le Club C-Tech.
+
+### Parcours
+- Le candidat se préinscrit ; la base le place au hasard dans l’équipe la moins remplie (20 équipes de 5, 100 places, du 19 octobre au 6 novembre 2026). Le premier membre d’une équipe en devient le chef.
+- Quand une équipe est complète, l’organisation ouvre `admin.html`, clique sur **Créer le lien du chef** et l’envoie par WhatsApp ou e-mail (boutons préremplis). Le lien est personnel, valable 7 jours et utilisable une seule fois.
+- Le chef complète le dossier d’équipe ; l’organisation le **valide** depuis l’espace organisation, qui permet aussi d’exporter la liste des participants (CSV).
+- Dates d’ouverture et de clôture modifiables dans la table `hk_settings` (colonnes `opens_at`, `closes_at`).
+
+## Serveur Node (développement local)
+
+### Installation et démarrage
 
 Node.js 20 ou une version ultérieure est requis.
 

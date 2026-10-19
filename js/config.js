@@ -4,9 +4,18 @@
 //    on cible automatiquement le backend local sur le port 3000.
 // 3. Si protocole file://, chaîne vide pour activer le mode démo hors-ligne.
 // 4. Sinon, même origine que la page (cas standard où server.js sert le site).
+// Base de données Supabase (production). À remplir avec les valeurs de
+// Supabase > Project Settings > API : « Project URL » et clé « anon public ».
+// La clé anon est faite pour être publique : la base n’autorise que les
+// fonctions de supabase/schema.sql, jamais l’accès direct aux tables.
+const SUPABASE_URL = '';
+const SUPABASE_ANON_KEY = '';
+
 function resolveApiUrl() {
   if (typeof window !== 'undefined' && window.HK_API_URL) return window.HK_API_URL;
   if (typeof window === 'undefined') return '';
+  // Si Supabase est configuré, il est utilisé partout (y compris en local).
+  if (SUPABASE_URL && SUPABASE_ANON_KEY) return '';
   if (window.location.protocol === 'file:') return '';
   // Sur GitHub Pages (*.github.io), aucun backend Express n'est hébergé localement par défaut
   if (window.location.hostname.endsWith('github.io')) return '';
@@ -23,6 +32,8 @@ window.HK_CONFIG = {
   CONTACT_EMAIL: "ctech2798@gmail.com",
   WHATSAPP: "241065369629", // 065 36 96 29 (Club C-Tech)
   API_URL: HK_API_URL,
+  SUPABASE_URL,
+  SUPABASE_ANON_KEY,
 
   // EmailJS (partagé avec le site C-Tech)
   EMAILJS_SERVICE_ID: "service_7p6hu8i",

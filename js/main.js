@@ -21,15 +21,15 @@ function layout() {
   const header = $('#site-header');
   const footer = $('#site-footer');
   if (!header || !footer) return;
-  header.innerHTML = `<div class="bar"><a class="brand" href="index.html"><img src="assets/logo.svg" alt="" width="40" height="40"><span>Hackathon UniC’bon<em>2026</em></span></a>
+  header.innerHTML = `<div class="bar"><a class="brand" href="index.html"><img src="assets/logo.svg" alt="" width="40" height="40"><span>Hackathon C-Tech<em>2026</em></span></a>
   <button class="burger" aria-label="Ouvrir le menu" aria-expanded="false" aria-controls="menu"><i></i><i></i></button>
   <nav id="menu" aria-label="Navigation principale"><a href="index.html#deroule">Déroulé</a><a href="index.html#faq">Questions</a><a href="jury.html"${cur('jury')}>Jury</a><a class="btn" href="inscription.html">Préinscription</a></nav></div>`;
   const contact = [C.CONTACT_EMAIL && `<a href="mailto:${esc(C.CONTACT_EMAIL)}">${esc(C.CONTACT_EMAIL)}</a>`, C.WHATSAPP && `<a href="https://wa.me/${esc(C.WHATSAPP)}">WhatsApp</a>`].filter(Boolean).join(' · ');
   footer.innerHTML = `<div class="wrap"><div class="ft">
-    <div><strong>Hackathon UniC’bon 2026</strong><p>Du 13 au 15 novembre 2026<br>Université Internationale Brice Clotaire Oligui Nguema du Cap, Libreville</p></div>
+    <div><strong>Hackathon C-Tech 2026</strong><p>Innover pour le Gabon<br>Du 13 au 15 novembre 2026<br>Université Internationale Brice Clotaire Oligui Nguema du Cap, Cap Estérias</p></div>
     <div><h4>Navigation</h4><ul><li><a href="inscription.html">Préinscription</a></li><li><a href="jury.html">Rejoindre le jury</a></li><li><a href="index.html#deroule">Déroulé</a></li><li><a href="index.html#faq">Questions fréquentes</a></li><li><a href="admin.html">Espace organisation</a></li></ul></div>
-    <div><h4>Organisation</h4><ul><li>Institut Supérieur de Technologie (IST)</li><li>Club C-Tech</li>${contact ? `<li>${contact}</li>` : ''}</ul></div>
-  </div><div class="copy"><span>© 2026 Hackathon UniC’bon · IST</span><span>Libreville, Gabon</span></div></div>`;
+    <div><h4>Organisation</h4><ul><li>Club de Technologie C-Tech</li><li>En collaboration avec l’Institut Supérieur de Technologie (IST)</li>${contact ? `<li>${contact}</li>` : ''}</ul></div>
+  </div><div class="copy"><span>© 2026 Hackathon C-Tech · Club C-Tech × IST</span><span>Cap Estérias, Gabon</span></div></div>`;
   const b = $('.burger'), m = $('#menu');
   if (b && m) {
     b.onclick = () => { const o = m.classList.toggle('open'); b.setAttribute('aria-expanded', o); };
@@ -64,30 +64,6 @@ function counters() {
   els.forEach(e => { e.textContent = '0'; io.observe(e); });
 }
 
-function saveToLocalDb(entry) {
-  try {
-    const list = JSON.parse(localStorage.getItem('ctech_inscriptions') || '[]');
-    if (Array.isArray(list)) {
-      if (!list.some(x => (x.email || '').toLowerCase() === (entry.email || '').toLowerCase())) {
-        list.push({
-          id: 'ins_hk_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6),
-          nom: entry.nom || '',
-          email: entry.email || '',
-          filiere: entry.filiere || '',
-          tel: entry.tel || '',
-          message: entry.message || '',
-          source: 'hackathon',
-          created_at: new Date().toISOString()
-        });
-        localStorage.setItem('ctech_inscriptions', JSON.stringify(list));
-        window.dispatchEvent(new CustomEvent('ctech_inscription_added'));
-      }
-    }
-  } catch (e) {
-    console.warn('[Hackathon] Sauvegarde base locale:', e);
-  }
-}
-
 async function sendEmailJs(templateParams) {
   if (!C.EMAILJS_SERVICE_ID || !C.EMAILJS_TEMPLATE_ID || !C.EMAILJS_PUBLIC_KEY) return null;
   try {
@@ -108,8 +84,38 @@ async function sendEmailJs(templateParams) {
   }
 }
 
+// Mode de fonctionnement :
+//  - 'api'      : serveur Node local (server.js), pour le développement ;
+//  - 'supabase' : base Supabase partagée (production sur GitHub Pages) ;
+//  - 'demo'     : fichier ouvert localement sans base (file://) — rien n’est transmis ;
+//  - 'off'      : site public sans base configurée — les formulaires sont désactivés.
+const MODE = C.API_URL ? 'api'
+  : (C.SUPABASE_URL && C.SUPABASE_ANON_KEY) ? 'supabase'
+  : (location.protocol === 'file:' || /^(localhost|127\.0\.0\.1)$/.test(location.hostname)) ? 'demo' : 'off';
+window.HK_MODE = MODE;
+const OFF_MESSAGE = 'Les préinscriptions en ligne ne sont pas encore ouvertes. Contacte le Club C-Tech sur WhatsApp au 065 36 96 29.';
+
+async function rpc(fn, args) {
+  const url = `${C.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/rpc/${fn}`;
+  let response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: C.SUPABASE_ANON_KEY, Authorization: `Bearer ${C.SUPABASE_ANON_KEY}` },
+      body: JSON.stringify(args)
+    });
+  } catch {
+    throw new Error('Impossible de joindre le service d’inscription. Vérifie ta connexion Internet et réessaie.');
+  }
+  const body = await response.json().catch(() => null);
+  if (!response.ok) throw new Error((body && body.message) || `Le service d’inscription a refusé la demande (HTTP ${response.status}).`);
+  if (body && body.ok === false) throw new Error(body.error || 'La demande a été refusée.');
+  return body;
+}
+window.HK_RPC = rpc;
+
 async function send(kind, data) {
-  if (C.API_URL) {
+  if (MODE === 'api') {
     const apiUrl = C.API_URL.replace(/\/+$/, '');
     let response;
     try {
@@ -136,120 +142,45 @@ async function send(kind, data) {
     return result;
   }
 
-  // Mode Cloud Supabase & EmailJS (partagé avec C-Tech)
-  if (kind === 'participants') {
-    const parts = readStorage('hk-demo-participants') || [];
-    if (!Array.isArray(parts)) writeStorage('hk-demo-participants', []);
-    if (parts.some(x => x.mail === data.mail)) {
-      throw new Error('Cette adresse e-mail a déjà été utilisée pour une préinscription.');
+  if (MODE === 'supabase') {
+    if (kind === 'participants') {
+      const result = await rpc('hk_preinscrire', { p_name: data.name, p_fil: data.fil, p_mail: data.mail, p_tel: data.tel });
+      const a = result.assignment || {};
+      // Notification facultative à l’organisation (n’empêche jamais l’inscription)
+      sendEmailJs({
+        from_name: data.name, from_email: data.mail, filiere: data.fil,
+        niveau: a.isLeader ? "Chef d'équipe" : 'Membre',
+        interets: ['Hackathon C-Tech 2026', a.name],
+        message: `Nouvelle préinscription Hackathon C-Tech 2026 :\n• Nom : ${data.name}\n• E-mail : ${data.mail}\n• Tél : ${data.tel}\n• Filière : ${data.fil}\n• Équipe : ${a.name} (${a.memberCount}/5)${a.teamComplete ? '\n→ Équipe complète : générer le lien du chef dans l’espace organisation.' : ''}`,
+        to_email: C.CONTACT_EMAIL || 'ctech2798@gmail.com',
+        sent_at: new Date().toLocaleString('fr-FR')
+      }).catch(() => {});
+      return result;
     }
-    let teams = readStorage('hk-demo-teams');
-    if (!Array.isArray(teams) || teams.length !== 20) {
-      teams = Array.from({ length: 20 }, (_, i) => ({
-        id: i + 1,
-        code: i + 1,
-        name: `Équipe ${String(i + 1).padStart(2, '0')}`,
-        status: 'collecting',
-        members: []
-      }));
+    if (kind === 'teams') {
+      return rpc('hk_finaliser', { p_token: data.invitationToken, p_fil: data.fil, p_tel: data.tel, p_idee: data.idee || '' });
     }
-    const available = teams.filter(t => t.status === 'collecting' && t.members.length < 5);
-    if (!available.length) throw new Error('Les 20 équipes sont complètes. Les inscriptions sont closes.');
-    available.sort((a, b) => a.members.length - b.members.length);
-    const minCount = available[0].members.length;
-    const tied = available.filter(t => t.members.length === minCount);
-    const chosen = tied[Math.floor(Math.random() * tied.length)];
-    const isLeader = chosen.members.length === 0;
-    const newMember = { ...data, is_leader: isLeader ? 1 : 0, created_at: new Date().toISOString() };
-    chosen.members.push(newMember);
-    parts.push({ ...newMember, team_id: chosen.id });
-    writeStorage('hk-demo-participants', parts);
-
-    let token = null;
-    if (chosen.members.length === 5) {
-      chosen.status = 'awaiting_team_info';
-      token = 'demo_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
-      chosen.token = token;
-      chosen.expires_at = new Date(Date.now() + 7 * 864e5).toISOString();
-    }
-    writeStorage('hk-demo-teams', teams);
-
-    // Enregistrement dans la base locale partagée avec C-Tech
-    saveToLocalDb({
-      nom: data.name,
-      email: data.mail,
-      filiere: data.fil,
-      tel: data.tel || 'N/A',
-      message: `[Hackathon UniC’bon 2026] Tél: ${data.tel || 'N/A'} | Équipe: ${chosen.name} | Rôle: ${isLeader ? 'Chef d\'équipe' : 'Membre'}`
-    });
-
-    // Envoi de la notification par EmailJS (optionnelle)
-    await sendEmailJs({
-      from_name: data.name,
-      from_email: data.mail,
-      filiere: data.fil,
-      niveau: isLeader ? "Chef d'équipe" : "Membre",
-      interets: ["Hackathon UniC’bon 2026", chosen.name],
-      message: `Nouvelle inscription Hackathon UniC’bon :\n• Nom : ${data.name}\n• E-mail : ${data.mail}\n• Tél : ${data.tel}\n• Filière : ${data.fil}\n• Équipe : ${chosen.name} (${chosen.members.length}/5)`,
-      to_email: C.CONTACT_EMAIL || 'ctech2798@gmail.com',
-      sent_at: new Date().toLocaleString('fr-FR')
-    });
-
-    return {
-      ok: true,
-      emailSent: true,
-      assignment: {
-        name: chosen.name,
-        memberCount: chosen.members.length,
-        isLeader
-      },
-      message: `Préinscription validée avec succès ! Tu es affecté(e) à ${chosen.name} (${chosen.members.length}/5 membres). Enregistré dans la base interne.`
-    };
+    return rpc('hk_jury_candidature', { p_name: data.name, p_org: data.org, p_mail: data.mail, p_tel: data.tel || '', p_exp: data.exp || '', p_days: data.days || [] });
   }
 
-  if (kind === 'teams') {
-    const teams = readStorage('hk-demo-teams') || [];
-    const team = teams.find(t => t.token === data.invitationToken);
-    if (!team) throw new Error('Ce lien d’invitation est invalide ou introuvable.');
-    if (team.status === 'confirmed') throw new Error('Cette équipe a déjà validé son inscription.');
-    team.status = 'confirmed';
-    team.fil = data.fil;
-    team.tel = data.tel;
-    team.idea = data.idee || '';
-    team.submitted_at = new Date().toISOString();
-    writeStorage('hk-demo-teams', teams);
+  if (MODE === 'off') throw new Error(OFF_MESSAGE);
 
-    saveToLocalDb({
-      nom: team.name,
-      email: data.mail || team.mail || '',
-      filiere: data.fil,
-      tel: data.tel || '',
-      message: `[Hackathon UniC’bon 2026 - Finalisation équipe] Tél: ${data.tel} | Idée: ${data.idee || 'Non renseignée'}`
-    });
+  // Mode démonstration local : rien n’est transmis, aucune équipe n’est réellement attribuée.
+  const k = 'hk-demo-' + kind, list = readStorage(k) || [];
+  if (!Array.isArray(list)) throw new Error('Données de démonstration invalides.');
+  if (list.some(x => x.mail === data.mail)) throw new Error('Cette adresse e-mail a déjà été utilisée (démonstration).');
+  list.push({ ...data, created_at: new Date().toISOString() }); writeStorage(k, list);
+  return { ok: true, demo: true, message: 'Mode démonstration : ces informations sont restées sur cet appareil et n’ont pas été transmises à l’organisation.' };
+}
 
-    return { ok: true, team: { name: team.name }, message: 'L’inscription complète de l’équipe a été validée et enregistrée !' };
+function showModeNotice() {
+  const demo = $('#demo');
+  if (!demo) return;
+  if (MODE === 'demo') { demo.hidden = false; }
+  if (MODE === 'off') {
+    demo.hidden = false; demo.textContent = OFF_MESSAGE;
+    document.querySelectorAll('form button[type=submit]').forEach(b => { b.disabled = true; });
   }
-
-  const k = 'hk-demo-' + kind, a = readStorage(k) || [];
-  if (!Array.isArray(a)) throw new Error('Données invalides.');
-  if (a.some(x => x.mail === data.mail)) {
-    throw new Error('Cette adresse e-mail a déjà été utilisée.');
-  }
-  a.push(data); writeStorage(k, a);
-
-  saveToLocalDb({
-    nom: data.name,
-    email: data.mail,
-    filiere: data.org || data.role || data.job || 'Jury',
-    tel: data.tel || '',
-    message: `[Hackathon UniC’bon 2026 - Candidature Jury] ${data.exp || data.bio || ''} | Dispo: ${(data.days || []).join(', ')}`
-  });
-
-  return {
-    ok: true,
-    emailSent: true,
-    message: 'Votre candidature a été transmise avec succès à l’organisation !'
-  };
 }
 
 async function forms() {
@@ -272,11 +203,9 @@ async function forms() {
         juryForm.hidden = true;
         const doneBox = $('#done');
         doneBox.hidden = false;
-        const confirmation = result.message || (C.API_URL
-          ? 'L’organisation a enregistré votre candidature.'
-          : 'Candidature conservée sur cet appareil uniquement ; elle n’a pas été transmise à l’organisation.');
+        const confirmation = result.message || 'L’organisation a enregistré votre candidature.';
         doneBox.innerHTML = `
-          <h2>Candidature reçue</h2>
+          <h2>${result.demo ? 'Démonstration' : 'Candidature reçue'}</h2>
           <p>Merci <strong>${esc(data.name)}</strong>.</p>
           <p style="margin-top:12px;color:var(--txt)">${esc(confirmation)}</p>
           <div style="margin-top:24px"><a class="btn ghost" href="index.html">← Retour à l’accueil</a></div>
@@ -304,26 +233,15 @@ async function forms() {
     const teamButton = $('button[type=submit]', teamForm);
     try {
       let teamInfo;
-      if (C.API_URL) {
+      if (MODE === 'api') {
         const response = await fetch(`${C.API_URL.replace(/\/$/, '')}/api/team-invitations/${encodeURIComponent(invitationToken)}`);
         const result = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(result.error || 'Ce lien d’invitation est invalide ou expiré.');
         teamInfo = result.data;
+      } else if (MODE === 'supabase') {
+        teamInfo = await rpc('hk_invitation', { p_token: invitationToken });
       } else {
-        const teams = readStorage('hk-demo-teams') || [];
-        const team = teams.find(t => t.token === invitationToken);
-        if (!team) throw new Error('Ce lien d’invitation est invalide ou expiré (mode démonstration).');
-        if (team.status === 'confirmed') throw new Error('Cette équipe a déjà finalisé son inscription.');
-        const leader = (team.members && team.members.find(m => m.is_leader)) || team.members?.[0];
-        const otherMembers = (team.members || []).filter(m => m !== leader);
-        teamInfo = {
-          assignedTeam: team.name,
-          name: leader?.name || '',
-          mail: leader?.mail || '',
-          tel: leader?.tel || '',
-          fil: leader?.fil || '',
-          members: otherMembers.map(m => ({ name: m.name }))
-        };
+        throw new Error(MODE === 'off' ? OFF_MESSAGE : 'La finalisation d’équipe nécessite la base de données (indisponible en démonstration).');
       }
       $('[name="name"]', teamForm).value = teamInfo.assignedTeam;
       $('[name="chef"]', teamForm).value = teamInfo.name;
@@ -347,23 +265,28 @@ async function forms() {
 
   function done(kind, data, result) {
     const d = $('#done'); d.hidden = false;
+    if (result.demo) {
+      d.innerHTML = `<h2>Démonstration</h2><p>${esc(result.message)}</p>
+        <div style="margin-top:24px"><a class="btn ghost" href="index.html">← Retour au site</a></div>`;
+      return;
+    }
     if (kind === 'participants') {
-      const team = result.assignment?.name || 'une équipe';
-      const count = result.assignment?.memberCount || 1;
-      const isLeader = result.assignment?.isLeader;
+      const a = result.assignment || {};
+      const team = a.name || 'une équipe';
+      const count = a.memberCount || 1;
       d.innerHTML = `
-        <h2>Préinscription validée !</h2>
-        <p>Merci <strong>${esc(data.name)}</strong>, ta candidature a bien été enregistrée.</p>
+        <h2>Préinscription enregistrée</h2>
+        <p>Merci <strong>${esc(data.name)}</strong>, ta préinscription a bien été enregistrée par l’organisation.</p>
         <div style="margin:20px 0;padding:18px 22px;background:rgba(31,211,138,.12);border:1px solid rgba(31,211,138,.35);border-radius:14px;">
           <div style="font:700 13px var(--fm);color:var(--sun);letter-spacing:.12em;text-transform:uppercase;">Affectation</div>
           <div style="font:700 22px var(--fh);color:#fff;margin:6px 0;">${esc(team)}</div>
           <div style="color:var(--mut);font-size:15px;">
-            ${isLeader
-              ? `👑 Tu es le <strong>chef d’équipe</strong> (${count}/5 membres). Dès que les 5 membres seront réunis, tu recevras par e-mail le lien pour finaliser l’inscription.`
-              : `👥 Tu as rejoint l'équipe (${count}/5 membres). Dès qu'elle sera complète, le chef d'équipe recevra le lien de confirmation.`}
+            ${a.isLeader
+              ? `👑 Tu es le <strong>chef d’équipe</strong> (${count}/5 membres). Quand ton équipe sera complète, l’organisation t’enverra un lien personnel pour finaliser l’inscription de l’équipe.`
+              : `👥 Tu as rejoint l’équipe (${count}/5 membres). Quand elle sera complète, le chef d’équipe recevra de l’organisation le lien pour la finaliser.`}
           </div>
         </div>
-        <p style="font-size:15px;color:var(--mut);">${esc(result.message || '')}</p>
+        <p style="font-size:15px;color:var(--mut);">Ta participation ne sera définitive qu’après la finalisation de l’équipe, le règlement de la cotisation de 15 000 FCFA et la validation par l’organisation.</p>
         <div style="margin-top:24px;display:flex;gap:12px;flex-wrap:wrap;">
           <a class="btn gold" href="index.html">← Retour au site</a>
           <a class="btn ghost" href="index.html#deroule">Voir le déroulé</a>
@@ -371,9 +294,9 @@ async function forms() {
       `;
     } else {
       d.innerHTML = `
-        <h2>Équipe inscrite avec succès !</h2>
-        <p>L’inscription de <strong>${esc(data.name || 'ton équipe')}</strong> a bien été enregistrée par l’organisation.</p>
-        <p style="margin-top:12px;color:var(--mut)">Rendez-vous du 13 au 15 novembre 2026 à l’Université Internationale Brice Clotaire Oligui Nguema du Cap, Libreville.</p>
+        <h2>Dossier d’équipe transmis</h2>
+        <p>Le dossier de <strong>${esc(data.name || 'ton équipe')}</strong> a bien été envoyé à l’organisation.</p>
+        <p style="margin-top:12px;color:var(--mut)">L’organisation va le vérifier puis confirmer votre inscription. Rendez-vous du 13 au 15 novembre 2026 au Cap Estérias.</p>
         <div style="margin-top:24px;">
           <a class="btn gold" href="index.html">← Retour à l’accueil</a>
         </div>
@@ -412,5 +335,5 @@ function reveal() {
   els.forEach(e => io.observe(e));
 }
 
-layout(); countdown(); counters(); reveal(); forms();
+layout(); countdown(); counters(); reveal(); showModeNotice(); forms();
 })();

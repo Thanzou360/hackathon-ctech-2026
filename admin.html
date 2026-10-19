@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#050F0B">
-<title>Administration — Hackathon UniC’bon 2026</title>
+<title>Administration — Hackathon C-Tech 2026</title>
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
@@ -63,8 +63,8 @@ tr:hover td { background: rgba(255,255,255,.02); }
       <p style="color: var(--mut); font-size: 14px; margin-top: 6px;">Consultez les 20 équipes, les préinscriptions et les candidatures du jury.</p>
     </div>
     <form id="admin-login-form">
-      <label>Code d’accès ou Mot de passe
-        <input type="password" id="auth-key" required placeholder="Saisissez votre mot de passe d’accès" autocomplete="current-password">
+      <label>Mot de passe administrateur
+        <input type="password" id="auth-key" required placeholder="Mot de passe défini dans Supabase" autocomplete="current-password">
       </label>
       <div id="login-feedback" role="alert" aria-live="assertive"></div>
       <button class="btn gold" type="submit" id="btn-login" style="width: 100%; margin-top: 8px;">Accéder au tableau de bord</button>
@@ -74,12 +74,13 @@ tr:hover td { background: rgba(255,255,255,.02); }
   <div id="dash-section" hidden>
     <div class="admin-head">
       <div class="admin-title">
-        <span class="eyebrow">Hackathon UniC’bon 2026</span>
+        <span class="eyebrow">Hackathon C-Tech 2026</span>
         <h1>Tableau de bord de l’organisation</h1>
-        <p>Suivi en temps réel des 20 équipes, candidatures jury et renvoi des invitations.</p>
+        <p>Suivi des 20 équipes, liens d’invitation des chefs, validation des dossiers et candidatures du jury.</p>
       </div>
       <div style="display: flex; gap: 10px; align-items: center;">
         <button class="btn ghost btn-sm" id="btn-refresh">↻ Actualiser</button>
+        <button class="btn ghost btn-sm" id="btn-csv">⬇ Exporter (CSV)</button>
         <button class="btn ghost btn-sm" id="btn-logout" style="border-color: rgba(255,107,94,.4); color: #ff8578;">Déconnexion</button>
       </div>
     </div>
@@ -94,7 +95,7 @@ tr:hover td { background: rgba(255,255,255,.02); }
         <div class="kpi-val" id="kpi-confirmed">0 <span style="font-size: 18px; color: var(--mut);">/ 20</span></div>
       </div>
       <div class="kpi-card sea">
-        <div class="kpi-label">En attente d'inscription</div>
+        <div class="kpi-label">Équipes complètes</div>
         <div class="kpi-val" id="kpi-awaiting">0</div>
       </div>
       <div class="kpi-card">
@@ -141,339 +142,193 @@ tr:hover td { background: rgba(255,255,255,.02); }
 <script>
 (() => {
   const C = window.HK_CONFIG || {};
+  const MODE = window.HK_MODE;            // 'supabase' (production), 'api' (serveur local) ou autre
   const apiUrl = (C.API_URL || '').replace(/\/+$/, '');
+  const rpc = window.HK_RPC;
+  let password = sessionStorage.getItem('hk_admin_pwd') || '';
+  let lastData = null;
 
-  let currentKey = sessionStorage.getItem('hk_admin_key') || '';
-  let authType = sessionStorage.getItem('hk_auth_type') || 'header';
-
-  const loginSection = document.getElementById('login-section');
-  const dashSection = document.getElementById('dash-section');
-  const loginForm = document.getElementById('admin-login-form');
-  const authKeyInput = document.getElementById('auth-key');
-  const loginFeedback = document.getElementById('login-feedback');
-  const btnRefresh = document.getElementById('btn-refresh');
-  const btnLogout = document.getElementById('btn-logout');
-  const teamsContainer = document.getElementById('teams-container');
-  const juryTableBody = document.getElementById('jury-table-body');
-
+  const $ = id => document.getElementById(id);
+  const loginSection = $('login-section'), dashSection = $('dash-section');
+  const loginForm = $('admin-login-form'), authKeyInput = $('auth-key'), loginFeedback = $('login-feedback');
+  const btnRefresh = $('btn-refresh'), btnLogout = $('btn-logout'), btnCsv = $('btn-csv');
+  const teamsContainer = $('teams-container'), juryTableBody = $('jury-table-body');
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
   function showToast(msg, isErr = false) {
     const el = document.createElement('div');
     el.className = 'toast' + (isErr ? ' err' : '');
     el.textContent = msg;
-    document.getElementById('toast-container').appendChild(el);
-    setTimeout(() => el.remove(), 4000);
+    $('toast-container').appendChild(el);
+    setTimeout(() => el.remove(), 4500);
   }
 
-  function getHeaders() {
-    const headers = { 'Content-Type': 'application/json' };
-    if (authType === 'basic') {
-      headers['Authorization'] = 'Basic ' + currentKey;
-    } else {
-      headers['x-admin-key'] = currentKey;
+  // ---------- accès aux données ----------
+  async function fetchData(pwd) {
+    if (MODE === 'supabase') {
+      return rpc('hk_admin_data', { p_password: pwd });   // lève une erreur si refusé
     }
-    return headers;
+    if (MODE === 'api') {
+      const h = { 'x-admin-key': pwd };
+      const [tRes, jRes] = await Promise.all([fetch(`${apiUrl}/api/admin/teams`, { headers: h }), fetch(`${apiUrl}/api/admin/jury`, { headers: h })]);
+      if (tRes.status === 401 || jRes.status === 401) throw new Error('Mot de passe administrateur invalide.');
+      const t = await tRes.json(), j = await jRes.json();
+      return { teams: t.teams || [], jury: j.applications || [] };
+    }
+    throw new Error('Aucune base de données n’est configurée : renseigne SUPABASE_URL et SUPABASE_ANON_KEY dans js/config.js.');
   }
 
-  async function checkAuth(key) {
-    if (!apiUrl) {
-      const pass = key.includes(':') ? key.split(':')[1] : key;
-      if (pass === 'ctech1994' || key === 'ctech1994') {
-        currentKey = key;
-        authType = 'demo';
-        sessionStorage.setItem('hk_admin_key', key);
-        sessionStorage.setItem('hk_auth_type', 'demo');
-        return true;
-      }
+  async function login(pwd) {
+    loginFeedback.className = ''; loginFeedback.textContent = '';
+    try {
+      lastData = await fetchData(pwd);
+      password = pwd; sessionStorage.setItem('hk_admin_pwd', pwd);
+      loginSection.hidden = true; dashSection.hidden = false;
+      renderDashboard(lastData);
+      return true;
+    } catch (e) {
+      sessionStorage.removeItem('hk_admin_pwd'); password = '';
+      loginSection.hidden = false; dashSection.hidden = true;
+      loginFeedback.className = 'msg'; loginFeedback.textContent = e.message;
       return false;
     }
-    try {
-      // Try x-admin-key first
-      let res = await fetch(`${apiUrl}/api/admin/auth`, {
-        headers: { 'x-admin-key': key }
-      });
-      if (res.ok) {
-        currentKey = key;
-        authType = 'header';
-        sessionStorage.setItem('hk_admin_key', key);
-        sessionStorage.setItem('hk_auth_type', 'header');
-        return true;
-      }
-
-      // Try Basic auth (admin:key or user:pass)
-      const creds = key.includes(':') ? key : `admin:${key}`;
-      const basicToken = btoa(unescape(encodeURIComponent(creds)));
-      res = await fetch(`${apiUrl}/api/admin/auth`, {
-        headers: { 'Authorization': `Basic ${basicToken}` }
-      });
-      if (res.ok) {
-        currentKey = basicToken;
-        authType = 'basic';
-        sessionStorage.setItem('hk_admin_key', basicToken);
-        sessionStorage.setItem('hk_auth_type', 'basic');
-        return true;
-      }
-    } catch (e) {
-      console.error('Erreur d’authentification :', e);
-    }
-    return false;
   }
 
   async function loadData() {
-    try {
-      if (!apiUrl || authType === 'demo') {
-        let teams = JSON.parse(localStorage.getItem('hk-demo-teams') || 'null');
-        if (!Array.isArray(teams)) {
-          teams = Array.from({ length: 20 }, (_, i) => ({
-            id: i + 1,
-            code: i + 1,
-            name: `Équipe ${String(i + 1).padStart(2, '0')}`,
-            status: 'collecting',
-            members: []
-          }));
-        }
-        teams.forEach(t => {
-          t.member_count = (t.members || []).length;
-          const leader = (t.members || []).find(m => m.is_leader);
-          t.leader_name = leader?.name || '';
-          t.leader_mail = leader?.mail || '';
-          t.leader_tel = leader?.tel || '';
-        });
-        const applications = JSON.parse(localStorage.getItem('hk-demo-jury') || '[]');
-        renderDashboard(teams, applications);
-        return;
-      }
-
-      const [tRes, jRes] = await Promise.all([
-        fetch(`${apiUrl}/api/admin/teams`, { headers: getHeaders() }),
-        fetch(`${apiUrl}/api/admin/jury`, { headers: getHeaders() })
-      ]);
-
-      if (tRes.status === 401 || jRes.status === 401) {
-        logout();
-        return;
-      }
-
-      const tData = await tRes.json();
-      const jData = await jRes.json();
-
-      renderDashboard(tData.teams || [], jData.applications || []);
-    } catch (e) {
-      showToast('Erreur lors du chargement des données : ' + e.message, true);
-    }
+    try { lastData = await fetchData(password); renderDashboard(lastData); }
+    catch (e) { showToast(e.message, true); if (/mot de passe|tentatives/i.test(e.message)) logout(); }
   }
 
-  function renderDashboard(teams, applications) {
-    let totalMembers = 0;
-    let confirmedCount = 0;
-    let awaitingCount = 0;
+  // ---------- affichage ----------
+  const STATUS = {
+    collecting: ['collecting', 'En constitution'],
+    awaiting_team_info: ['awaiting', 'À finaliser par le chef'],
+    submitted: ['awaiting', 'Dossier reçu — à valider'],
+    confirmed: ['confirmed', 'Validée']
+  };
+  function waNumber(tel) {
+    let d = String(tel || '').replace(/\D/g, '');
+    if (d.startsWith('00241')) d = d.slice(2);
+    else if (!d.startsWith('241')) d = '241' + d;
+    return d;
+  }
+  function fmtDate(v) { return v ? new Date(v).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) : '—'; }
 
-    teams.forEach(t => {
-      totalMembers += (t.member_count || 0);
-      if (t.status === 'confirmed') confirmedCount++;
-      if (t.status === 'awaiting_team_info') awaitingCount++;
-    });
+  function renderDashboard(data) {
+    const teams = data.teams || [], jury = data.jury || [];
+    const total = teams.reduce((n, t) => n + (t.member_count || 0), 0);
+    const count = st => teams.filter(t => t.status === st).length;
+    $('kpi-participants').innerHTML = `${total} <span style="font-size:18px;color:var(--mut);">/ 100</span>`;
+    $('kpi-confirmed').innerHTML = `${count('confirmed')} <span style="font-size:18px;color:var(--mut);">/ 20</span>`;
+    $('kpi-awaiting').innerHTML = `${count('awaiting_team_info')} <span style="font-size:15px;color:var(--mut);">à finaliser · ${count('submitted')} à valider</span>`;
+    $('kpi-jury').textContent = jury.length;
 
-    document.getElementById('kpi-participants').innerHTML = `${totalMembers} <span style="font-size:18px;color:var(--mut);">/ 100</span>`;
-    document.getElementById('kpi-confirmed').innerHTML = `${confirmedCount} <span style="font-size:18px;color:var(--mut);">/ 20</span>`;
-    document.getElementById('kpi-awaiting').textContent = awaitingCount;
-    document.getElementById('kpi-jury').textContent = applications.length;
-
-    // Render Teams
-    if (!teams.length) {
-      teamsContainer.innerHTML = '<div style="color:var(--mut);grid-column:1/-1;text-align:center;padding:40px;">Aucune équipe n’a encore été initialisée. Les équipes apparaîtront dès la première préinscription.</div>';
-    } else {
-      teamsContainer.innerHTML = teams.map(t => {
-        const count = t.member_count || 0;
-        const pct = Math.min(100, Math.round((count / 5) * 100));
-        let badgeClass = 'collecting';
-        let badgeText = 'En cours';
-        if (t.status === 'confirmed') { badgeClass = 'confirmed'; badgeText = 'Validée'; }
-        else if (t.status === 'awaiting_team_info') { badgeClass = 'awaiting'; badgeText = 'À finaliser'; }
-
-        const leader = t.members?.find(m => m.is_leader) || { name: t.leader_name, mail: t.leader_mail, tel: t.leader_tel };
-
-        return `
-          <div class="t-card">
-            <div>
-              <div class="t-head">
-                <span class="t-title">${esc(t.name)}</span>
-                <span class="badge ${badgeClass}">${badgeText}</span>
-              </div>
-              <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--mut);">
-                <span>Membres : ${count}/5</span>
-                <span>${pct}%</span>
-              </div>
-              <div class="p-bar"><div class="p-fill" style="width:${pct}%"></div></div>
-
-              ${leader?.name ? `
-                <div style="font-size:13px;margin-bottom:8px;">
-                  <strong style="color:var(--txt);">Chef :</strong> ${esc(leader.name)}
-                  ${leader.mail ? `<br><small style="color:var(--mut);">${esc(leader.mail)} ${leader.tel ? '· ' + esc(leader.tel) : ''}</small>` : ''}
-                </div>
-              ` : '<div style="font-size:13px;color:var(--mut);margin-bottom:8px;">Pas encore de membre</div>'}
-
-              ${t.members && t.members.length > 0 ? `
-                <ul class="member-list">
-                  ${t.members.map(m => `
-                    <li class="member-item">
-                      <span>${esc(m.name)} ${m.is_leader ? '<span class="leader-tag">Chef</span>' : ''}</span>
-                      <small style="color:var(--mut);font-family:var(--fm);">${esc(m.fil || '')}</small>
-                    </li>
-                  `).join('')}
-                </ul>
-              ` : ''}
-
-              ${t.idea ? `<div class="t-idea">💡 <strong>Projet :</strong> ${esc(t.idea)}</div>` : ''}
-            </div>
-
-            <div class="t-actions">
-              ${t.status === 'awaiting_team_info' ? `
-                <button class="btn gold btn-sm" data-action="resend" data-team-id="${t.id}" data-team-name="${esc(t.name)}">
-                  ✉ Renvoyer le lien au chef
-                </button>
-              ` : ''}
-            </div>
+    teamsContainer.innerHTML = teams.map(t => {
+      const n = t.member_count || 0, pct = Math.min(100, Math.round(n / 5 * 100));
+      const [cls, label] = STATUS[t.status] || STATUS.collecting;
+      const leader = (t.members || []).find(m => m.is_leader);
+      let actions = '';
+      if (t.status === 'awaiting_team_info') actions = `<button class="btn gold btn-sm" data-action="invite" data-id="${t.id}">🔗 ${t.invite_expires_at ? 'Recréer' : 'Créer'} le lien du chef</button>`;
+      if (t.status === 'submitted') actions = `<button class="btn gold btn-sm" data-action="confirm" data-id="${t.id}">✓ Valider l’équipe</button><button class="btn ghost btn-sm" data-action="reopen" data-id="${t.id}">Renvoyer en finalisation</button>`;
+      if (t.status === 'confirmed') actions = `<button class="btn ghost btn-sm" data-action="reopen" data-id="${t.id}">Annuler la validation</button>`;
+      return `
+        <div class="t-card" id="team-${t.id}">
+          <div>
+            <div class="t-head"><span class="t-title">${esc(t.name)}</span><span class="badge ${cls}">${label}</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--mut);"><span>Membres : ${n}/5</span><span>${pct}%</span></div>
+            <div class="p-bar"><div class="p-fill" style="width:${pct}%"></div></div>
+            ${leader ? `<div style="font-size:13px;margin-bottom:8px;"><strong style="color:var(--txt);">Chef :</strong> ${esc(leader.name)}<br><small style="color:var(--mut);">${esc(leader.mail)} · ${esc(leader.tel)}</small></div>` : '<div style="font-size:13px;color:var(--mut);margin-bottom:8px;">Pas encore de membre</div>'}
+            ${(t.members || []).length ? `<ul class="member-list">${t.members.map(m => `<li class="member-item"><span>${esc(m.name)} ${m.is_leader ? '<span class="leader-tag">Chef</span>' : ''}</span><small style="color:var(--mut);font-family:var(--fm);">${esc(m.fil || '')}</small></li>`).join('')}</ul>` : ''}
+            ${t.status === 'submitted' || t.status === 'confirmed' ? `<div style="font-size:13px;color:var(--mut);margin:8px 0;">Filière principale : ${esc(t.fil || '—')} · Contact : ${esc(t.tel || '—')}<br>Dossier reçu le ${fmtDate(t.submitted_at)}</div>` : ''}
+            ${t.idea ? `<div class="t-idea">💡 <strong>Projet :</strong> ${esc(t.idea)}</div>` : ''}
+            ${t.status === 'awaiting_team_info' && t.invite_expires_at ? `<div style="font-size:12px;color:var(--mut);">Lien actuel valable jusqu’au ${fmtDate(t.invite_expires_at)}</div>` : ''}
+            <div class="invite-box" hidden></div>
           </div>
-        `;
-      }).join('');
-    }
+          ${actions ? `<div class="t-actions">${actions}</div>` : ''}
+        </div>`;
+    }).join('') || '<div style="color:var(--mut);grid-column:1/-1;text-align:center;padding:40px;">Aucune équipe.</div>';
 
-    // Render Jury Applications
-    if (!applications.length) {
-      juryTableBody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--mut);padding:30px;">Aucune candidature pour le moment.</td></tr>';
-    } else {
-      juryTableBody.innerHTML = applications.map(a => `
-        <tr>
-          <td><strong>${esc(a.name)}</strong></td>
-          <td>${esc(a.organization || '—')}</td>
-          <td><a href="mailto:${esc(a.mail)}" style="color:var(--green);">${esc(a.mail)}</a></td>
-          <td>${esc(a.tel || '—')}</td>
-          <td>${esc(a.expertise || '—')}</td>
-          <td>${Array.isArray(a.days) ? a.days.map(d => `<span class="badge collecting" style="font-size:10px;margin:2px;">${esc(d)}</span>`).join(' ') : '—'}</td>
-          <td><small style="color:var(--mut);font-family:var(--fm);">${a.created_at ? new Date(a.created_at).toLocaleDateString('fr-FR') : '—'}</small></td>
-        </tr>
-      `).join('');
-    }
+    juryTableBody.innerHTML = jury.length ? jury.map(a => `
+      <tr>
+        <td><strong>${esc(a.name)}</strong></td><td>${esc(a.organization || '—')}</td>
+        <td><a href="mailto:${esc(a.mail)}" style="color:var(--green);">${esc(a.mail)}</a></td><td>${esc(a.tel || '—')}</td>
+        <td>${esc(a.expertise || '—')}</td>
+        <td>${Array.isArray(a.days) && a.days.length ? a.days.map(d => `<span class="badge collecting" style="font-size:10px;margin:2px;">${esc(d)}</span>`).join(' ') : '—'}</td>
+        <td><small style="color:var(--mut);font-family:var(--fm);">${fmtDate(a.created_at)}</small></td>
+      </tr>`).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--mut);padding:30px;">Aucune candidature pour le moment.</td></tr>';
   }
 
+  // ---------- actions ----------
   teamsContainer.addEventListener('click', async e => {
-    const btn = e.target.closest('[data-action="resend"]');
-    if (!btn) return;
-    const teamId = btn.dataset.teamId;
-    const teamName = btn.dataset.teamName;
-    await resendInvitation(teamId, teamName);
+    const btn = e.target.closest('[data-action]'); if (!btn) return;
+    const id = Number(btn.dataset.id), action = btn.dataset.action;
+    if (MODE !== 'supabase') { showToast('Action disponible uniquement avec la base Supabase.', true); return; }
+    btn.disabled = true;
+    try {
+      if (action === 'invite') {
+        const r = await rpc('hk_admin_invitation', { p_password: password, p_team_id: id });
+        const url = new URL(`inscription.html?invite=${r.token}`, location.href).href;
+        const msg = `Bonjour ${r.leader.name}, ton équipe « ${r.team} » du Hackathon C-Tech 2026 est complète. Tu en es le chef : finalise votre inscription avec ce lien personnel (valable 7 jours) : ${url}`;
+        const box = document.querySelector(`#team-${id} .invite-box`);
+        box.hidden = false;
+        box.innerHTML = `
+          <div style="margin-top:12px;padding:12px;border:1px solid var(--line2);border-radius:12px;background:rgba(0,0,0,.25)">
+            <div style="font:700 11px var(--fm);color:var(--sun);letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px">Lien personnel du chef (ne s’affiche qu’une fois)</div>
+            <input readonly value="${esc(url)}" style="width:100%;font-size:12px" onclick="this.select()">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+              <button class="btn ghost btn-sm" data-copy="${esc(url)}">Copier</button>
+              <a class="btn gold btn-sm" target="_blank" rel="noopener" href="https://wa.me/${waNumber(r.leader.tel)}?text=${encodeURIComponent(msg)}">WhatsApp</a>
+              <a class="btn ghost btn-sm" href="mailto:${esc(r.leader.mail)}?subject=${encodeURIComponent('Hackathon C-Tech 2026 — finalise ton équipe')}&body=${encodeURIComponent(msg)}">E-mail</a>
+            </div>
+          </div>`;
+        showToast(`Lien créé pour ${r.team}. Envoie-le au chef.`);
+      } else if (action === 'confirm' || action === 'reopen') {
+        if (action === 'reopen' && !confirm('Renvoyer cette équipe en finalisation ? Le chef devra recevoir un nouveau lien.')) { btn.disabled = false; return; }
+        await rpc('hk_admin_set_status', { p_password: password, p_team_id: id, p_status: action === 'confirm' ? 'confirmed' : 'awaiting_team_info' });
+        showToast(action === 'confirm' ? 'Équipe validée.' : 'Équipe renvoyée en finalisation.');
+        await loadData();
+      }
+    } catch (err) { showToast(err.message, true); }
+    btn.disabled = false;
+  });
+  teamsContainer.addEventListener('click', e => {
+    const c = e.target.closest('[data-copy]'); if (!c) return;
+    navigator.clipboard?.writeText(c.dataset.copy).then(() => showToast('Lien copié.'), () => showToast('Copie impossible : sélectionne le lien.', true));
   });
 
-  async function resendInvitation(teamId, teamName) {
-    try {
-      if (!apiUrl || authType === 'demo') {
-        const teams = JSON.parse(localStorage.getItem('hk-demo-teams') || '[]');
-        const team = teams.find(t => String(t.id) === String(teamId));
-        if (!team) throw new Error('Équipe introuvable.');
-        const token = 'demo_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
-        team.token = token;
-        team.status = 'awaiting_team_info';
-        team.expires_at = new Date(Date.now() + 7 * 864e5).toISOString();
-        localStorage.setItem('hk-demo-teams', JSON.stringify(teams));
-        const url = `${location.origin}${location.pathname.replace(/admin\.html.*$/, '')}inscription.html?invite=${encodeURIComponent(token)}`;
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(url).catch(() => {});
-        }
-        showToast(`Lien généré pour ${teamName} ! (Copié dans le presse-papiers)`);
-        loadData();
-        return;
-      }
-      const res = await fetch(`${apiUrl}/api/admin/team-invitations/resend`, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({ teamId })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Échec de l’envoi.');
-      if (data.invitationUrl) {
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(data.invitationUrl).catch(() => {});
-        }
-        showToast(data.message || `Lien généré pour ${teamName} ! (Copié dans le presse-papiers)`);
-      } else {
-        showToast(data.message || `Lien envoyé avec succès pour ${teamName} !`);
-      }
-      loadData();
-    } catch (e) {
-      showToast('Erreur : ' + e.message, true);
-    }
+  function exportCsv() {
+    if (!lastData) return;
+    const rows = [['Équipe', 'Statut', 'Chef', 'Nom', 'Filière', 'E-mail', 'Téléphone', 'Inscrit le']];
+    (lastData.teams || []).forEach(t => (t.members || []).forEach(m => rows.push([t.name, (STATUS[t.status] || [])[1] || t.status, m.is_leader ? 'oui' : '', m.name, m.fil, m.mail, m.tel, fmtDate(m.created_at)])));
+    const csv = '﻿' + rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(';')).join('\r\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    a.download = `hackathon-ctech-2026-participants-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
   }
 
   function logout() {
-    sessionStorage.removeItem('hk_admin_key');
-    sessionStorage.removeItem('hk_auth_type');
-    currentKey = '';
-    loginSection.hidden = false;
-    dashSection.hidden = true;
+    sessionStorage.removeItem('hk_admin_pwd'); password = ''; lastData = null;
+    loginSection.hidden = false; dashSection.hidden = true;
   }
 
   loginForm.addEventListener('submit', async e => {
     e.preventDefault();
-    loginFeedback.textContent = '';
-    loginFeedback.className = '';
-    const key = authKeyInput.value.trim();
-    if (!key) return;
-
-    const btn = document.getElementById('btn-login');
-    btn.disabled = true;
-    btn.textContent = 'Vérification en cours…';
-
-    const ok = await checkAuth(key);
-    btn.disabled = false;
-    btn.textContent = 'Accéder au tableau de bord';
-
-    if (ok) {
-      loginSection.hidden = true;
-      dashSection.hidden = false;
-      loadData();
-    } else {
-      loginFeedback.className = 'msg';
-      loginFeedback.textContent = 'Identifiants ou clé d’administration invalides.';
-    }
+    const key = authKeyInput.value; if (!key) return;
+    const btn = $('btn-login'); btn.disabled = true; btn.textContent = 'Vérification en cours…';
+    await login(key);
+    btn.disabled = false; btn.textContent = 'Accéder au tableau de bord';
   });
-
   btnLogout.addEventListener('click', logout);
-  btnRefresh.addEventListener('click', () => {
-    btnRefresh.textContent = 'Chargement…';
-    loadData().finally(() => btnRefresh.textContent = '↻ Actualiser');
-  });
-
-  // Tab switching
-  document.querySelectorAll('.tab-btn').forEach(b => {
-    b.addEventListener('click', () => {
-      document.querySelectorAll('.tab-btn').forEach(x => x.classList.remove('active'));
-      b.classList.add('active');
-      const tab = b.dataset.tab;
-      document.getElementById('tab-teams-view').hidden = tab !== 'teams';
-      document.getElementById('tab-jury-view').hidden = tab !== 'jury';
-    });
-  });
-
-  // Auto-login if session exists or via URL parameter (?key=... ou ?pwd=...)
-  const urlParamKey = new URLSearchParams(location.search).get('key') || new URLSearchParams(location.search).get('pwd');
-  if (urlParamKey) {
-    checkAuth(urlParamKey).then(ok => {
-      if (ok) {
-        loginSection.hidden = true;
-        dashSection.hidden = false;
-        loadData();
-      } else {
-        loginFeedback.className = 'msg';
-        loginFeedback.textContent = 'Clé d’accès passée dans l’URL invalide.';
-      }
-    });
-  } else if (currentKey) {
-    loginSection.hidden = true;
-    dashSection.hidden = false;
-    loadData();
-  }
+  btnCsv.addEventListener('click', exportCsv);
+  btnRefresh.addEventListener('click', () => { btnRefresh.textContent = 'Chargement…'; loadData().finally(() => btnRefresh.textContent = '↻ Actualiser'); });
+  document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    $('tab-teams-view').hidden = b.dataset.tab !== 'teams';
+    $('tab-jury-view').hidden = b.dataset.tab !== 'jury';
+  }));
+  if (password) login(password);
 })();
 </script>
 </body>
