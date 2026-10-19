@@ -49,6 +49,9 @@ th { font: 700 11px var(--fm); color: var(--sun); letter-spacing: .08em; text-tr
 tr:hover td { background: rgba(255,255,255,.02); }
 .toast { position: fixed; bottom: 24px; right: 24px; background: var(--green); color: #04130c; padding: 14px 22px; border-radius: 12px; font-weight: 700; box-shadow: 0 10px 30px rgba(0,0,0,.5); z-index: 999; animation: fade .3s both; }
 .toast.err { background: #ff6b5e; color: #fff; }
+.del-btn { background: transparent; border: 1px solid rgba(255,107,94,.35); color: #ff8578; border-radius: 8px; width: 32px; height: 32px; cursor: pointer; font-size: 14px; flex: none; }
+.del-btn:hover { background: rgba(255,107,94,.15); }
+.del-btn:disabled { opacity: .4; cursor: wait; }
 </style>
 </head>
 <body data-page="admin">
@@ -125,6 +128,7 @@ tr:hover td { background: rgba(255,255,255,.02); }
               <th>Expertise</th>
               <th>Disponibilités</th>
               <th>Date</th>
+              <th></th>
             </tr>
           </thead>
           <tbody id="jury-table-body"></tbody>
@@ -238,7 +242,7 @@ tr:hover td { background: rgba(255,255,255,.02); }
             <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--mut);"><span>Membres : ${n}/5</span><span>${pct}%</span></div>
             <div class="p-bar"><div class="p-fill" style="width:${pct}%"></div></div>
             ${leader ? `<div style="font-size:13px;margin-bottom:8px;"><strong style="color:var(--txt);">Chef :</strong> ${esc(leader.name)}<br><small style="color:var(--mut);">${esc(leader.mail)} · ${esc(leader.tel)}</small></div>` : '<div style="font-size:13px;color:var(--mut);margin-bottom:8px;">Pas encore de membre</div>'}
-            ${(t.members || []).length ? `<ul class="member-list">${t.members.map(m => `<li class="member-item"><span>${esc(m.name)} ${m.is_leader ? '<span class="leader-tag">Chef</span>' : ''}</span><small style="color:var(--mut);font-family:var(--fm);">${esc(m.fil || '')}</small></li>`).join('')}</ul>` : ''}
+            ${(t.members || []).length ? `<ul class="member-list">${t.members.map(m => `<li class="member-item"><span>${esc(m.name)} ${m.is_leader ? '<span class="leader-tag">Chef</span>' : ''}<br><small style="color:var(--mut);">${esc(m.mail)} · ${esc(m.tel)}</small></span><span style="display:flex;align-items:center;gap:8px"><small style="color:var(--mut);font-family:var(--fm);">${esc(m.fil || '')}</small>${m.id ? `<button class="del-btn" title="Supprimer ce participant" data-del="participant" data-id="${m.id}" data-name="${esc(m.name)}" data-team="${esc(t.name)}">🗑</button>` : ''}</span></li>`).join('')}</ul>` : ''}
             ${t.status === 'submitted' || t.status === 'confirmed' ? `<div style="font-size:13px;color:var(--mut);margin:8px 0;">Filière principale : ${esc(t.fil || '—')} · Contact : ${esc(t.tel || '—')}<br>Dossier reçu le ${fmtDate(t.submitted_at)}</div>` : ''}
             ${t.idea ? `<div class="t-idea">💡 <strong>Projet :</strong> ${esc(t.idea)}</div>` : ''}
             ${t.status === 'awaiting_team_info' && t.invite_expires_at ? `<div style="font-size:12px;color:var(--mut);">Lien actuel valable jusqu’au ${fmtDate(t.invite_expires_at)}</div>` : ''}
@@ -255,7 +259,8 @@ tr:hover td { background: rgba(255,255,255,.02); }
         <td>${esc(a.expertise || '—')}</td>
         <td>${Array.isArray(a.days) && a.days.length ? a.days.map(d => `<span class="badge collecting" style="font-size:10px;margin:2px;">${esc(d)}</span>`).join(' ') : '—'}</td>
         <td><small style="color:var(--mut);font-family:var(--fm);">${fmtDate(a.created_at)}</small></td>
-      </tr>`).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--mut);padding:30px;">Aucune candidature pour le moment.</td></tr>';
+        <td>${a.id ? `<button class="del-btn" title="Supprimer cette candidature" data-del="jury" data-id="${a.id}" data-name="${esc(a.name)}">🗑</button>` : ''}</td>
+      </tr>`).join('') : '<tr><td colspan="8" style="text-align:center;color:var(--mut);padding:30px;">Aucune candidature pour le moment.</td></tr>';
   }
 
   // ---------- actions ----------
@@ -291,6 +296,27 @@ tr:hover td { background: rgba(255,255,255,.02); }
     } catch (err) { showToast(err.message, true); }
     btn.disabled = false;
   });
+  // Suppression d'un participant ou d'une candidature jury
+  async function onDelete(e) {
+    const b = e.target.closest('[data-del]'); if (!b) return;
+    if (MODE !== 'supabase') { showToast('Action disponible uniquement avec la base Supabase.', true); return; }
+    const isJury = b.dataset.del === 'jury';
+    const question = isJury
+      ? `Supprimer définitivement la candidature jury de ${b.dataset.name} ?`
+      : `Supprimer définitivement ${b.dataset.name} (${b.dataset.team}) ?\n\nSa place sera libérée. Si c’était le chef, le membre suivant deviendra chef. Si l’équipe était complète, son lien d’invitation sera annulé.`;
+    if (!confirm(question)) return;
+    b.disabled = true;
+    try {
+      const r = isJury
+        ? await rpc('hk_admin_delete_jury', { p_password: password, p_jury_id: Number(b.dataset.id) })
+        : await rpc('hk_admin_delete_participant', { p_password: password, p_participant_id: Number(b.dataset.id) });
+      showToast(`${r.deleted} supprimé(e).` + (r.newLeader ? ` Nouveau chef : ${r.newLeader}.` : ''));
+      await loadData();
+    } catch (err) { showToast(err.message, true); b.disabled = false; }
+  }
+  teamsContainer.addEventListener('click', onDelete);
+  juryTableBody.addEventListener('click', onDelete);
+
   teamsContainer.addEventListener('click', e => {
     const c = e.target.closest('[data-copy]'); if (!c) return;
     navigator.clipboard?.writeText(c.dataset.copy).then(() => showToast('Lien copié.'), () => showToast('Copie impossible : sélectionne le lien.', true));

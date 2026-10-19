@@ -33,6 +33,8 @@ GitHub Pages ne peut héberger que des pages fixes : sans base de données, aucu
 - Le candidat se préinscrit ; la base le place au hasard dans l’équipe la moins remplie (20 équipes de 5, 100 places, du 19 octobre au 6 novembre 2026). Le premier membre d’une équipe en devient le chef.
 - Quand une équipe est complète, l’organisation ouvre `admin.html`, clique sur **Créer le lien du chef** et l’envoie par WhatsApp ou e-mail (boutons préremplis). Le lien est personnel, valable 7 jours et utilisable une seule fois.
 - Le chef complète le dossier d’équipe ; l’organisation le **valide** depuis l’espace organisation, qui permet aussi d’exporter la liste des participants (CSV).
+- L’espace organisation permet de **supprimer** un participant (doublon, test, désistement) ou une candidature jury : la place est libérée, le membre suivant devient chef si besoin, et une équipe complète est rouverte.
+- Mise à jour de la base : il suffit de recoller la dernière version de `supabase/schema.sql` dans le SQL Editor et de cliquer sur **Run** ; les inscriptions et le mot de passe sont conservés.
 - Dates d’ouverture et de clôture modifiables dans la table `hk_settings` (colonnes `opens_at`, `closes_at`).
 
 ## Serveur Node (développement local)

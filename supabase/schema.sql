@@ -275,11 +275,11 @@ begin
         'id', t.id, 'name', t.name, 'status', t.status, 'fil', t.fil, 'tel', t.tel, 'idea', t.idea,
         'submitted_at', t.submitted_at, 'confirmed_at', t.confirmed_at, 'invite_expires_at', t.invite_expires_at,
         'member_count', (select count(*) from hk_participants p where p.team_id = t.id),
-        'members', coalesce((select jsonb_agg(jsonb_build_object('name', p.name, 'fil', p.fil, 'mail', p.mail, 'tel', p.tel,
+        'members', coalesce((select jsonb_agg(jsonb_build_object('id', p.id, 'name', p.name, 'fil', p.fil, 'mail', p.mail, 'tel', p.tel,
                     'is_leader', p.is_leader, 'created_at', p.created_at) order by p.created_at)
                     from hk_participants p where p.team_id = t.id), '[]'::jsonb)) order by t.id)
       from hk_teams t), '[]'::jsonb),
-    'jury', coalesce((select jsonb_agg(jsonb_build_object('name', j.name, 'organization', j.organization, 'mail', j.mail,
+    'jury', coalesce((select jsonb_agg(jsonb_build_object('id', j.id, 'name', j.name, 'organization', j.organization, 'mail', j.mail,
         'tel', j.tel, 'expertise', j.expertise, 'days', to_jsonb(j.days), 'created_at', j.created_at) order by j.created_at desc)
       from hk_jury j), '[]'::jsonb));
 end $$;
@@ -324,6 +324,42 @@ begin
   return jsonb_build_object('ok', true);
 end $$;
 
+-- Suppression d'un participant (doublon, test, désistement).
+-- Si c'était le chef, le membre inscrit juste après devient chef.
+-- Une équipe complète redevient « en constitution » et son lien d'invitation est annulé.
+create or replace function public.hk_admin_delete_participant(p_password text, p_participant_id bigint)
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
+declare err text := public.hk_admin_ok(p_password); p hk_participants; st text; new_chef text;
+begin
+  if err is not null then return jsonb_build_object('ok', false, 'error', err); end if;
+  perform pg_advisory_xact_lock(20261113);
+  select * into p from hk_participants where id = p_participant_id;
+  if not found then return jsonb_build_object('ok', false, 'error', 'Participant introuvable (déjà supprimé ?).'); end if;
+  select status into st from hk_teams where id = p.team_id;
+  if st in ('submitted', 'confirmed') then
+    return jsonb_build_object('ok', false, 'error', 'Cette équipe a déjà envoyé son dossier : clique d’abord sur « Renvoyer en finalisation » ou « Annuler la validation ».');
+  end if;
+  delete from hk_participants where id = p.id;
+  if p.is_leader then
+    update hk_participants set is_leader = true
+     where id = (select id from hk_participants where team_id = p.team_id order by created_at, id limit 1)
+    returning name into new_chef;
+  end if;
+  update hk_teams set status = 'collecting', invite_token_hash = null, invite_expires_at = null, invite_used_at = null
+   where id = p.team_id and status = 'awaiting_team_info';
+  return jsonb_build_object('ok', true, 'deleted', p.name, 'newLeader', new_chef);
+end $$;
+
+create or replace function public.hk_admin_delete_jury(p_password text, p_jury_id bigint)
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
+declare err text := public.hk_admin_ok(p_password); n text;
+begin
+  if err is not null then return jsonb_build_object('ok', false, 'error', err); end if;
+  delete from hk_jury where id = p_jury_id returning name into n;
+  if n is null then return jsonb_build_object('ok', false, 'error', 'Candidature introuvable.'); end if;
+  return jsonb_build_object('ok', true, 'deleted', n);
+end $$;
+
 -- À lancer UNE fois dans le SQL Editor (jamais depuis le site) :
 --   select public.hk_set_admin_password('un-mot-de-passe-long-et-secret');
 create or replace function public.hk_set_admin_password(p_new text)
@@ -341,13 +377,15 @@ revoke all on function public.hk_clean(text, text, int, boolean), public.hk_clea
   public.hk_admin_ok(text), public.hk_set_admin_password(text),
   public.hk_preinscrire(text, text, text, text), public.hk_invitation(text), public.hk_finaliser(text, text, text, text),
   public.hk_jury_candidature(text, text, text, text, text, text[]), public.hk_admin_data(text),
-  public.hk_admin_invitation(text, int), public.hk_admin_set_status(text, int, text) from public;
+  public.hk_admin_invitation(text, int), public.hk_admin_set_status(text, int, text),
+  public.hk_admin_delete_participant(text, bigint), public.hk_admin_delete_jury(text, bigint) from public;
 do $$ declare r text; begin
   foreach r in array array['anon', 'authenticated'] loop
     if exists (select 1 from pg_roles where rolname = r) then
       execute format('grant execute on function public.hk_preinscrire(text, text, text, text), public.hk_invitation(text),
         public.hk_finaliser(text, text, text, text), public.hk_jury_candidature(text, text, text, text, text, text[]),
-        public.hk_admin_data(text), public.hk_admin_invitation(text, int), public.hk_admin_set_status(text, int, text) to %I', r);
+        public.hk_admin_data(text), public.hk_admin_invitation(text, int), public.hk_admin_set_status(text, int, text),
+        public.hk_admin_delete_participant(text, bigint), public.hk_admin_delete_jury(text, bigint) to %I', r);
     end if;
   end loop;
 end $$;
