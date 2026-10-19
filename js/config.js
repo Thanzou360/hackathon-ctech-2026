@@ -5,11 +5,11 @@
 // 3. Si protocole file://, chaîne vide pour activer le mode démo hors-ligne.
 // 4. Sinon, même origine que la page (cas standard où server.js sert le site).
 // Base de données Supabase (production). À remplir avec les valeurs de
-// Supabase > Project Settings > API : « Project URL » et clé « anon public ».
-// La clé anon est faite pour être publique : la base n’autorise que les
+// Supabase > Project Settings : « Project URL » et clé « publishable » (ou ancienne clé « anon public »).
+// Cette clé est faite pour être publique : la base n’autorise que les
 // fonctions de supabase/schema.sql, jamais l’accès direct aux tables.
-const SUPABASE_URL = '';
-const SUPABASE_ANON_KEY = '';
+const SUPABASE_URL = 'https://lqovrsoruljzarktbhmc.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_SgeWelFLlTW_TXfW-hS3bA_TqAG35sM';
 
 function resolveApiUrl() {
   if (typeof window !== 'undefined' && window.HK_API_URL) return window.HK_API_URL;

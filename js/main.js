@@ -101,7 +101,10 @@ async function rpc(fn, args) {
   try {
     response = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', apikey: C.SUPABASE_ANON_KEY, Authorization: `Bearer ${C.SUPABASE_ANON_KEY}` },
+      // Les clés « publishable » (sb_publishable_…) ne sont pas des JWT : en-tête apikey uniquement.
+      // Les anciennes clés « anon » (eyJ…) acceptent aussi l’en-tête Authorization.
+      headers: Object.assign({ 'Content-Type': 'application/json', apikey: C.SUPABASE_ANON_KEY },
+        C.SUPABASE_ANON_KEY.startsWith('eyJ') ? { Authorization: `Bearer ${C.SUPABASE_ANON_KEY}` } : {}),
       body: JSON.stringify(args)
     });
   } catch {
