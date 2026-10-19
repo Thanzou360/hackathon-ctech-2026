@@ -1,5 +1,5 @@
 /* ==========================================================
-   Hackathon UniC’bon 2026 — thème « nuit tropicale »
+   Hackathon C-Tech 2026 — thème « nuit tropicale » (sombre) et mode clair
    Vert forêt profond + soleil jaune + bleu océan (couleurs du Gabon)
    ========================================================== */
 :root{
@@ -7,6 +7,7 @@
   --line:rgba(255,255,255,.10);--line2:rgba(255,255,255,.18);
   --txt:#EAF4EE;--mut:#9DB5A9;
   --green:#1FD38A;--sun:#FFC829;--sea:#4C86FF;
+  --sun-ink:#FFC829;--input:#07150F;--header:rgba(5,15,11,.72);--header-sc:rgba(5,15,11,.9);--foot:#030a07;
   --r:18px;
   --fh:'Unbounded','Manrope',system-ui,sans-serif;
   --fb:'Manrope',system-ui,sans-serif;
@@ -35,8 +36,8 @@ img{max-width:100%}a{color:inherit}button,input,textarea{font:inherit}
 .cta .btn.gold:hover::after,.band .btn:hover::after{transform:translateX(4px)}
 
 /* ---------- En-tête ---------- */
-#site-header{position:sticky;top:0;z-index:30;background:rgba(5,15,11,.72);backdrop-filter:blur(16px) saturate(1.4);-webkit-backdrop-filter:blur(16px) saturate(1.4);border-bottom:1px solid transparent;transition:border-color .25s,background .25s}
-#site-header.sc{border-color:var(--line);background:rgba(5,15,11,.9)}
+#site-header{position:sticky;top:0;z-index:30;background:var(--header);backdrop-filter:blur(16px) saturate(1.4);-webkit-backdrop-filter:blur(16px) saturate(1.4);border-bottom:1px solid transparent;transition:border-color .25s,background .25s}
+#site-header.sc{border-color:var(--line);background:var(--header-sc)}
 .bar{width:min(1140px,100% - 40px);margin-inline:auto;display:flex;align-items:center;justify-content:space-between;min-height:74px;gap:16px}
 .brand{display:flex;align-items:center;gap:11px;text-decoration:none;font:700 15px var(--fh);letter-spacing:-.02em}
 .brand span{display:flex;flex-direction:column;line-height:1.15}
@@ -175,7 +176,7 @@ h2{font-size:clamp(25px,3.5vw,40px);margin-bottom:20px}
 .faq details[open] p{animation:fade .35s both}.faq p{margin:0;padding:0 24px 22px}
 
 /* ---------- Pied de page ---------- */
-footer{background:#030a07;border-top:1px solid var(--line);color:var(--mut);padding:56px 0 30px;font-size:15px}
+footer{background:var(--foot);border-top:1px solid var(--line);color:var(--mut);padding:56px 0 30px;font-size:15px}
 .ft{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:40px}
 .ft strong{display:block;color:var(--txt);font:700 20px var(--fh);letter-spacing:-.03em;margin-bottom:12px}
 .ft h4{margin:0 0 14px;font:700 11px var(--fm);letter-spacing:.16em;text-transform:uppercase;color:var(--sun)}
@@ -201,7 +202,7 @@ footer .wrap{display:block}
 form{display:grid;gap:20px;background:var(--card);border:1px solid var(--line);border-radius:22px;padding:clamp(22px,4vw,38px);box-shadow:0 30px 70px rgba(0,0,0,.35)}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
 label{display:grid;gap:8px;font-weight:700;font-size:14px;color:var(--txt)}label small{font-weight:500;color:var(--mut);font-size:12px}
-input,textarea,select{font:500 16px var(--fb);padding:13px 15px;min-height:50px;border:1.5px solid var(--line2);border-radius:12px;background:#07150F;color:var(--txt);width:100%;transition:border-color .2s,box-shadow .2s,background .2s}
+input,textarea,select{font:500 16px var(--fb);padding:13px 15px;min-height:50px;border:1.5px solid var(--line2);border-radius:12px;background:var(--input);color:var(--txt);width:100%;transition:border-color .2s,box-shadow .2s,background .2s}
 input::placeholder,textarea::placeholder{color:#5f7a6d}
 textarea{resize:vertical;min-height:120px}
 input:hover,textarea:hover{border-color:rgba(255,255,255,.3)}
@@ -211,7 +212,7 @@ input[readonly]{background:rgba(255,255,255,.04);color:var(--mut);border-style:d
 code{font-family:var(--fm);background:rgba(255,255,255,.08);padding:2px 6px;border-radius:6px;font-size:.9em}
 fieldset{border:0;padding:0;margin:0;display:grid;gap:12px;min-width:0}legend{font-weight:700;font-size:14px;margin-bottom:10px;padding:0}
 .days{display:flex;gap:10px;flex-wrap:wrap}
-.days label{display:flex;align-items:center;gap:10px;font-weight:600;font-size:15px;padding:11px 18px;border:1.5px solid var(--line2);border-radius:999px;cursor:pointer;background:#07150F;transition:border-color .2s,background .2s}
+.days label{display:flex;align-items:center;gap:10px;font-weight:600;font-size:15px;padding:11px 18px;border:1.5px solid var(--line2);border-radius:999px;cursor:pointer;background:var(--input);transition:border-color .2s,background .2s}
 .days label:hover{border-color:rgba(255,255,255,.35)}
 .days label:has(input:checked){border-color:var(--green);background:rgba(31,211,138,.14)}
 .days input{width:20px;min-height:20px;accent-color:var(--green)}
@@ -221,6 +222,63 @@ fieldset{border:0;padding:0;margin:0;display:grid;gap:12px;min-width:0}legend{fo
 .done{background:linear-gradient(135deg,rgba(31,211,138,.14),var(--card));border:1.5px solid rgba(31,211,138,.55);border-radius:22px;padding:clamp(26px,4vw,44px);box-shadow:0 0 60px rgba(31,211,138,.12)}
 .done h2{font-size:clamp(24px,3vw,32px)}.done p{margin:0;color:var(--txt)}
 .done h2::before{content:'✓';display:inline-grid;place-items:center;width:40px;height:40px;margin-right:14px;border-radius:50%;background:var(--green);color:#04130c;font:700 20px var(--fm);vertical-align:2px}
+
+/* ---------- Bouton de thème ---------- */
+.bar-end{display:flex;align-items:center;gap:8px;order:3}
+.brand{order:1}#menu{order:2;margin-left:auto}
+.theme-toggle{display:inline-grid;place-items:center;width:46px;height:46px;flex:none;border:1px solid var(--line2);border-radius:12px;background:transparent;color:var(--txt);cursor:pointer;transition:background .2s,border-color .2s,transform .2s}
+.theme-toggle:hover{background:rgba(127,127,127,.12);transform:rotate(-12deg)}
+.theme-toggle svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.theme-toggle .i-sun{display:none}
+html[data-theme="light"] .theme-toggle .i-sun{display:block}
+html[data-theme="light"] .theme-toggle .i-moon{display:none}
+.fee-note{margin-bottom:1.25rem;padding:1rem 1.25rem;border-radius:.85rem;background:rgba(234,179,8,.1);border:1px solid rgba(234,179,8,.35);color:#fef08a;font-size:.88rem;line-height:1.5}
+.fee-note>strong:first-child{display:block;margin-bottom:.25rem}.fee-note strong{color:#facc15}
+.band .eyebrow{color:#7be8b9}.band .eyebrow::before{background:#7be8b9}
+
+/* ==========================================================
+   Mode clair
+   ========================================================== */
+html[data-theme="light"]{
+  --bg:#F5F9F6;--bg2:#EAF2ED;--card:#FFFFFF;--card2:#F2F8F4;
+  --line:rgba(8,40,26,.12);--line2:rgba(8,40,26,.22);
+  --txt:#0B1F16;--mut:#4A6357;
+  --green:#087A4E;--sea:#2F63D8;--sun-ink:#8F6300;
+  --input:#FFFFFF;--header:rgba(245,249,246,.78);--header-sc:rgba(245,249,246,.94);--foot:#E4EDE7;
+  color-scheme:light;
+}
+html[data-theme="light"] ::selection{background:rgba(255,200,41,.45);color:#0B1F16}
+html[data-theme="light"] .btn.ghost:hover,html[data-theme="light"] #menu a:not(.btn):hover,html[data-theme="light"] #menu a[aria-current]{background:rgba(8,40,26,.06)}
+html[data-theme="light"] .btn.ghost:hover{border-color:rgba(8,40,26,.4)}
+html[data-theme="light"] .hero-meta span{background:rgba(255,255,255,.7)}
+html[data-theme="light"] .ln:nth-child(3)>span{background:linear-gradient(90deg,#A67300,#B88300 55%,#087A4E);-webkit-background-clip:text;background-clip:text}
+html[data-theme="light"] .sun{opacity:.75}
+/* le terminal reste sombre, comme un vrai éditeur de code */
+html[data-theme="light"] .term{--txt:#EAF4EE;--mut:#9DB5A9;--line:rgba(255,255,255,.10);--line2:rgba(255,255,255,.18);--green:#1FD38A;background:#0B1F16;box-shadow:0 30px 70px rgba(8,40,26,.25)}
+html[data-theme="light"] .count{background:rgba(255,255,255,.65)}
+html[data-theme="light"] .count p,html[data-theme="light"] .stats b,html[data-theme="light"] .trust-strip strong,html[data-theme="light"] .tl small,
+html[data-theme="light"] .ft h4,html[data-theme="light"] .brand em,html[data-theme="light"] .term-light,html[data-theme="light"] .aside li::before{color:var(--sun-ink)}
+html[data-theme="light"] .cd div{background:#fff;box-shadow:0 4px 18px rgba(8,40,26,.08)}
+html[data-theme="light"] .stats div{background:linear-gradient(135deg,#fff,var(--bg2))}
+html[data-theme="light"] .feature-card:hover{box-shadow:0 24px 50px rgba(8,40,26,.12)}
+html[data-theme="light"] .feature-icon{color:var(--sun-ink)}
+html[data-theme="light"] .feature-card:nth-child(3) .feature-icon{color:var(--sea)}
+html[data-theme="light"] .tl li::before{-webkit-text-stroke-color:rgba(154,107,0,.8)}
+html[data-theme="light"] .band{--txt:#fff;color:#fff}
+html[data-theme="light"] .band h2{color:#fff}
+html[data-theme="light"] .ft a:hover{color:var(--sun-ink);border-color:var(--sun-ink)}
+html[data-theme="light"] form{box-shadow:0 24px 60px rgba(8,40,26,.10)}
+html[data-theme="light"] input::placeholder,html[data-theme="light"] textarea::placeholder{color:#8AA196}
+html[data-theme="light"] input:hover,html[data-theme="light"] textarea:hover,html[data-theme="light"] .days label:hover{border-color:rgba(8,40,26,.4)}
+html[data-theme="light"] input:focus,html[data-theme="light"] textarea:focus{background:#fff;box-shadow:0 0 0 4px rgba(255,200,41,.35)}
+html[data-theme="light"] input[readonly]{background:rgba(8,40,26,.04)}
+html[data-theme="light"] code{background:rgba(8,40,26,.07)}
+html[data-theme="light"] .msg{color:#A1271C;background:rgba(255,107,94,.10)}
+html[data-theme="light"] .msg.ok{color:#0A6B45}
+html[data-theme="light"] .demo{color:#6E4D00;background:rgba(255,200,41,.16);border-color:rgba(190,140,0,.4)}
+html[data-theme="light"] .done{background:linear-gradient(135deg,rgba(10,134,86,.10),#fff)}
+html[data-theme="light"] .fee-note{color:#5C4300;background:rgba(255,200,41,.16);border-color:rgba(190,140,0,.4)}
+html[data-theme="light"] .fee-note strong{color:#7A5600}
 
 /* ---------- Révélation au défilement ---------- */
 .rv{opacity:0;transform:translateY(22px);transition:opacity .7s cubic-bezier(.2,.7,.2,1),transform .7s cubic-bezier(.2,.7,.2,1)}

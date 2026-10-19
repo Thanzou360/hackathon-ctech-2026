@@ -8,6 +8,7 @@
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+<script>try{document.documentElement.dataset.theme=localStorage.getItem('hk-theme')||(matchMedia('(prefers-color-scheme: light)').matches?'light':'dark')}catch(e){document.documentElement.dataset.theme='dark'}</script>
 <link rel="stylesheet" href="css/style.css">
 <style>
 .admin-wrap { width: min(1280px, 100% - 40px); margin-inline: auto; padding: 40px 0 80px; }
@@ -19,7 +20,7 @@
 .kpi-card::before { content:''; position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--sun); }
 .kpi-card.green::before { background: var(--green); }
 .kpi-card.sea::before { background: var(--sea); }
-.kpi-val { font: 700 36px/1.1 var(--fh); color: #fff; margin-top: 8px; }
+.kpi-val { font: 700 36px/1.1 var(--fh); color: var(--txt); margin-top: 8px; }
 .kpi-label { font: 700 12px var(--fm); color: var(--mut); letter-spacing: .08em; text-transform: uppercase; }
 .admin-tabs { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
 .tab-btn { background: var(--card); border: 1px solid var(--line2); color: var(--mut); font-weight: 700; font-size: 14px; padding: 10px 20px; border-radius: 999px; cursor: pointer; transition: all .2s; }
@@ -28,7 +29,7 @@
 .t-card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 24px; display: flex; flex-direction: column; justify-content: space-between; transition: border-color .2s, transform .2s; }
 .t-card:hover { border-color: rgba(255,200,41,.4); transform: translateY(-3px); }
 .t-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
-.t-title { font-family: var(--fh); font-size: 20px; font-weight: 700; color: #fff; }
+.t-title { font-family: var(--fh); font-size: 20px; font-weight: 700; color: var(--txt); }
 .badge { display: inline-flex; align-items: center; gap: 6px; font: 700 11px var(--fm); padding: 4px 10px; border-radius: 999px; text-transform: uppercase; letter-spacing: .06em; }
 .badge.collecting { background: rgba(255,200,41,.14); color: var(--sun); border: 1px solid rgba(255,200,41,.3); }
 .badge.awaiting { background: rgba(76,134,255,.16); color: #9bbfff; border: 1px solid rgba(76,134,255,.35); }
@@ -49,6 +50,12 @@ th { font: 700 11px var(--fm); color: var(--sun); letter-spacing: .08em; text-tr
 tr:hover td { background: rgba(255,255,255,.02); }
 .toast { position: fixed; bottom: 24px; right: 24px; background: var(--green); color: #04130c; padding: 14px 22px; border-radius: 12px; font-weight: 700; box-shadow: 0 10px 30px rgba(0,0,0,.5); z-index: 999; animation: fade .3s both; }
 .toast.err { background: #ff6b5e; color: #fff; }
+html[data-theme="light"] .badge.awaiting { color: #2349A8; }
+html[data-theme="light"] .badge.collecting { color: #8A5F00; }
+html[data-theme="light"] .t-idea, html[data-theme="light"] .invite-panel { background: rgba(8,40,26,.05) !important; }
+html[data-theme="light"] .login-card { box-shadow: 0 30px 70px rgba(8,40,26,.12); }
+html[data-theme="light"] .leader-tag { color: #8A5F00; }
+html[data-theme="light"] .tab-btn.active, html[data-theme="light"] .tab-btn:hover { color: #7A5600; border-color: #C99A00; background: rgba(255,200,41,.22); }
 .del-btn { background: transparent; border: 1px solid rgba(255,107,94,.35); color: #ff8578; border-radius: 8px; width: 32px; height: 32px; cursor: pointer; font-size: 14px; flex: none; }
 .del-btn:hover { background: rgba(255,107,94,.15); }
 .del-btn:disabled { opacity: .4; cursor: wait; }
@@ -277,7 +284,7 @@ tr:hover td { background: rgba(255,255,255,.02); }
         const box = document.querySelector(`#team-${id} .invite-box`);
         box.hidden = false;
         box.innerHTML = `
-          <div style="margin-top:12px;padding:12px;border:1px solid var(--line2);border-radius:12px;background:rgba(0,0,0,.25)">
+          <div class="invite-panel" style="margin-top:12px;padding:12px;border:1px solid var(--line2);border-radius:12px;background:rgba(0,0,0,.25)">
             <div style="font:700 11px var(--fm);color:var(--sun);letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px">Lien personnel du chef (ne s’affiche qu’une fois)</div>
             <input readonly value="${esc(url)}" style="width:100%;font-size:12px" onclick="this.select()">
             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">

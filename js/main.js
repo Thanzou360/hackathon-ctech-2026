@@ -22,7 +22,8 @@ function layout() {
   const footer = $('#site-footer');
   if (!header || !footer) return;
   header.innerHTML = `<div class="bar"><a class="brand" href="index.html"><img src="assets/logo.svg" alt="" width="40" height="40"><span>Hackathon C-Tech<em>2026</em></span></a>
-  <button class="burger" aria-label="Ouvrir le menu" aria-expanded="false" aria-controls="menu"><i></i><i></i></button>
+  <div class="bar-end"><button class="theme-toggle" type="button" aria-label="Changer de thème"><svg class="i-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg><svg class="i-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
+  <button class="burger" aria-label="Ouvrir le menu" aria-expanded="false" aria-controls="menu"><i></i><i></i></button></div>
   <nav id="menu" aria-label="Navigation principale"><a href="index.html#deroule">Déroulé</a><a href="index.html#faq">Questions</a><a href="jury.html"${cur('jury')}>Jury</a><a class="btn" href="inscription.html">Préinscription</a></nav></div>`;
   const contact = [C.CONTACT_EMAIL && `<a href="mailto:${esc(C.CONTACT_EMAIL)}">${esc(C.CONTACT_EMAIL)}</a>`, C.WHATSAPP && `<a href="https://wa.me/${esc(C.WHATSAPP)}">WhatsApp</a>`].filter(Boolean).join(' · ');
   footer.innerHTML = `<div class="wrap"><div class="ft">
@@ -30,6 +31,7 @@ function layout() {
     <div><h4>Navigation</h4><ul><li><a href="inscription.html">Préinscription</a></li><li><a href="jury.html">Rejoindre le jury</a></li><li><a href="index.html#deroule">Déroulé</a></li><li><a href="index.html#faq">Questions fréquentes</a></li><li><a href="admin.html">Espace organisation</a></li></ul></div>
     <div><h4>Organisation</h4><ul><li>Club de Technologie C-Tech</li><li>En collaboration avec l’Institut Supérieur de Technologie (IST)</li>${contact ? `<li>${contact}</li>` : ''}</ul></div>
   </div><div class="copy"><span>© 2026 Hackathon C-Tech · Club C-Tech × IST</span><span>Cap Estérias, Gabon</span></div></div>`;
+  themeToggle();
   const b = $('.burger'), m = $('#menu');
   if (b && m) {
     b.onclick = () => { const o = m.classList.toggle('open'); b.setAttribute('aria-expanded', o); };
@@ -38,6 +40,26 @@ function layout() {
   const hd = $('#site-header'), hero = $('.sunwrap');
   const sc = () => { if (hd) hd.classList.toggle('sc', scrollY > 8); if (hero && scrollY < 900) hero.style.setProperty('--py', scrollY * .18 + 'px'); };
   addEventListener('scroll', sc, { passive: true }); sc();
+}
+
+function applyTheme(t) {
+  document.documentElement.dataset.theme = t;
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', t === 'light' ? '#F5F9F6' : '#050F0B');
+  const btn = $('.theme-toggle');
+  if (btn) {
+    const label = t === 'light' ? 'Passer en mode sombre' : 'Passer en mode clair';
+    btn.setAttribute('aria-label', label); btn.title = label;
+  }
+}
+function themeToggle() {
+  const btn = $('.theme-toggle'); if (!btn) return;
+  applyTheme(document.documentElement.dataset.theme === 'light' ? 'light' : 'dark');
+  btn.addEventListener('click', () => {
+    const t = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+    applyTheme(t);
+    try { localStorage.setItem('hk-theme', t); } catch {}
+  });
 }
 
 function countdown() {
@@ -281,8 +303,8 @@ async function forms() {
         <h2>Préinscription enregistrée</h2>
         <p>Merci <strong>${esc(data.name)}</strong>, ta préinscription a bien été enregistrée par l’organisation.</p>
         <div style="margin:20px 0;padding:18px 22px;background:rgba(31,211,138,.12);border:1px solid rgba(31,211,138,.35);border-radius:14px;">
-          <div style="font:700 13px var(--fm);color:var(--sun);letter-spacing:.12em;text-transform:uppercase;">Affectation</div>
-          <div style="font:700 22px var(--fh);color:#fff;margin:6px 0;">${esc(team)}</div>
+          <div class="term-light" style="font:700 13px var(--fm);color:var(--sun);letter-spacing:.12em;text-transform:uppercase;">Affectation</div>
+          <div style="font:700 22px var(--fh);color:var(--txt);margin:6px 0;">${esc(team)}</div>
           <div style="color:var(--mut);font-size:15px;">
             ${a.isLeader
               ? `👑 Tu es le <strong>chef d’équipe</strong> (${count}/5 membres). Quand ton équipe sera complète, l’organisation t’enverra un lien personnel pour finaliser l’inscription de l’équipe.`
